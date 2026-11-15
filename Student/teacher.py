@@ -68,9 +68,9 @@ def load_torch_teacher(name, device):
     return model.to(device).eval().requires_grad_(False), cfg.vocab_size
 
 
-def load_mamba_ssm_teacher(name, device):
+def load_mamba_ssm_teacher(name, device, dtype=torch.bfloat16):
     from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
-    m = MambaLMHeadModel.from_pretrained(name, device=device, dtype=torch.bfloat16)
+    m = MambaLMHeadModel.from_pretrained(name, device=device, dtype=dtype)
     m.eval().requires_grad_(False)
     return _MambaSsmWrap(m), m.lm_head.weight.shape[0]
 
@@ -110,10 +110,16 @@ if __name__ == "__main__":
     ppl = torch.exp(F.cross_entropy(lt[0, :-1], ids[0, 1:])).item()
     print(f"torch teacher perplexity on sample text: {ppl:.2f} (expect roughly 10-40)")
     try:
-        m, _ = load_mamba_ssm_teacher(a.teacher, dev)
-        with torch.no_grad():
-            lm = m(ids).float()
-        print(f"max |logit diff| torch vs mamba_ssm: {(lt - lm).abs().max().item():.3f} "
-              "(bf16 reference, small values expected)")
+        for dt in (torch.float32, torch.bfloat16):
+            m, _ = load_mamba_ssm_teacher(a.teacher, dev, dt)
+            with torch.no_grad():
+                lm = m(ids).float()
+            d = (lt - lm).abs()
+            ppl_m = torch.exp(F.cross_entropy(lm[0, :-1], ids[0, 1:])).item()
+            top1 = (lt.argmax(-1) == lm.argmax(-1)).float().mean().item()
+            print(f"mamba_ssm {str(dt).split('.')[-1]:8s}: perplexity {ppl_m:.2f}  "
+                  f"|logit diff| max {d.max().item():.3f} mean {d.mean().item():.4f}  "
+                  f"top-1 agreement {top1:.1%}")
+            del m
     except Exception as e:
         print(f"mamba_ssm comparison skipped ({type(e).__name__})")

@@ -155,13 +155,19 @@ def ssd_chunked(x, dtA, B, C, chunk):
     Cc = C.reshape(b, nc, chunk, n)
     Acs = torch.cumsum(A, dim=-1)
     Lm = torch.exp(_segsum(A))                                      # b h c l s
-    y_diag = torch.einsum("bcln,bcsn,bhcls,bcshp->bclhp", Cc, Bc, Lm, X)
+    # Every einsum below has two operands, so no large (b,c,l,s,h,p)-sized
+    # intermediate is created (a 3-4 operand einsum may contract in that order).
+    CB = torch.einsum("bcln,bcsn->bcls", Cc, Bc)                    # b c l s
+    M = Lm * CB[:, None]                                            # b h c l s
+    y_diag = torch.einsum("bhcls,bcshp->bclhp", M, X)
     decay = torch.exp(Acs[..., -1:] - Acs)                          # b h c l
-    states = torch.einsum("bcln,bhcl,bclhp->bchpn", Bc, decay, X)
+    Xd = X * decay.permute(0, 2, 3, 1)[..., None]                   # b c l h p
+    states = torch.einsum("bcln,bclhp->bchpn", Bc, Xd)
     states = torch.cat([torch.zeros_like(states[:, :1]), states], dim=1)
     dchunk = torch.exp(_segsum(F.pad(Acs[..., -1], (1, 0))))        # b h c+1 c+1
     new_states = torch.einsum("bhzc,bchpn->bzhpn", dchunk, states)
-    y_off = torch.einsum("bcln,bchpn,bhcl->bclhp", Cc, new_states[:, :-1], torch.exp(Acs))
+    y_off = torch.einsum("bcln,bchpn->bclhp", Cc, new_states[:, :-1])
+    y_off = y_off * torch.exp(Acs).permute(0, 2, 3, 1)[..., None]
     return (y_diag + y_off).reshape(b, l, h, p)
 
 

@@ -47,7 +47,8 @@ def get_args():
     ap.add_argument("--nau", choices=["off", "published", "improved"], default="improved")
     # optimisation
     ap.add_argument("--seq", type=int, default=512)
-    ap.add_argument("--batch", type=int, default=16)
+    ap.add_argument("--batch", type=int, default=4, help="micro-batch per forward pass")
+    ap.add_argument("--accum", type=int, default=4, help="gradient accumulation steps")
     ap.add_argument("--steps", type=int, default=20000)
     ap.add_argument("--lr", type=float, default=None)
     ap.add_argument("--warmup", type=int, default=500)
@@ -94,7 +95,7 @@ def kd_loss(s_logits, t_logits, labels, temp, alpha, vocab):
 @torch.no_grad()
 def evaluate(model, args, tok, device, n_batches):
     model.eval()
-    it = batches(token_stream(args, tok, "validation"), 8, device)
+    it = batches(token_stream(args, tok, "validation"), args.batch, device)
     tot, n = 0.0, 0
     try:
         for _ in range(n_batches):
@@ -145,14 +146,16 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     t0 = time.time()
     for step in range(1, args.steps + 1):
-        x, y = next(it)
-        with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
-            t_logits = teacher(x)
-        with torch.autocast("cuda", dtype=torch.bfloat16):
-            s_logits = model(x)
-        loss, kd, ce = kd_loss(s_logits, t_logits, y, args.temp, args.alpha, vocab)
         opt.zero_grad(set_to_none=True)
-        loss.backward()
+        for _ in range(args.accum):
+            x, y = next(it)
+            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+                t_logits = teacher(x)
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                s_logits = model(x)
+            loss, kd, ce = kd_loss(s_logits, t_logits, y, args.temp, args.alpha, vocab)
+            (loss / args.accum).backward()
+            del t_logits, s_logits
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
         sched.step()
@@ -161,6 +164,7 @@ def main():
                   f"  lr {sched.get_last_lr()[0]:.2e}  {time.time()-t0:.0f}s", flush=True)
         if step % args.eval_every == 0 or step == args.steps:
             ppl = evaluate(model, args, tok, device, args.eval_batches)
+            print(f"   peak GPU memory {torch.cuda.max_memory_allocated()/2**30:.1f} GiB", flush=True)
             print(f"== step {step}: validation perplexity {ppl:.2f}", flush=True)
             torch.save({"cfg": cfg.to_dict(), "model": model.state_dict(), "step": step}, args.out)
 
