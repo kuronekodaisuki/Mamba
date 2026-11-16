@@ -1,0 +1,78 @@
+nohup: ignoring input
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+teacher: state-spaces/mamba2-130m (mamba_ssm implementation)
+student: StudentConfig(vocab_size=50288, d_model=256, n_layer=12, d_state=64, headdim=64, expand=2, d_conv=4, chunk=64, quant=True, w_bits=4, w_group=128, a_bits=8, conv_bits=8, emb_bits=8, hadamard=False, nau='improved')
+  body 5.18M params, embedding 12.87M
+step     50  loss 1.6251  kd 1.3900  ce 3.7411  lr 1.02e-05  23s
+step    100  loss 1.4800  kd 1.2225  ce 3.7979  lr 2.01e-05  37s
+step    150  loss 1.4317  kd 1.1507  ce 3.9613  lr 3.00e-05  51s
+step    200  loss 1.7002  kd 1.4299  ce 4.1334  lr 3.98e-05  64s
+step    250  loss 1.5553  kd 1.3154  ce 3.7138  lr 4.93e-05  78s
+step    300  loss 1.7518  kd 1.5486  ce 3.5806  lr 5.87e-05  92s
+step    350  loss 1.5776  kd 1.2818  ce 4.2404  lr 6.79e-05  105s
+step    400  loss 1.5858  kd 1.3231  ce 3.9503  lr 7.67e-05  119s
+step    450  loss 1.4083  kd 1.1267  ce 3.9429  lr 8.53e-05  133s
+step    500  loss 1.4715  kd 1.2257  ce 3.6837  lr 9.33e-05  146s
+   peak GPU memory 8.4 GiB
+== step 500: validation perplexity 46.76
+step    550  loss 1.4578  kd 1.2065  ce 3.7188  lr 9.19e-05  165s
+step    600  loss 1.5640  kd 1.2846  ce 4.0782  lr 9.05e-05  178s
+step    650  loss 1.9013  kd 1.6372  ce 4.2786  lr 8.89e-05  192s
+step    700  loss 1.8811  kd 1.6223  ce 4.2098  lr 8.72e-05  206s
+step    750  loss 1.3044  kd 1.0916  ce 3.2192  lr 8.54e-05  220s
+step    800  loss 1.7190  kd 1.4791  ce 3.8783  lr 8.35e-05  234s
+step    850  loss 1.5857  kd 1.3161  ce 4.0122  lr 8.15e-05  247s
+step    900  loss 1.6093  kd 1.3535  ce 3.9119  lr 7.94e-05  261s
+step    950  loss 1.7255  kd 1.4435  ce 4.2636  lr 7.72e-05  275s
+step   1000  loss 1.4869  kd 1.1903  ce 4.1565  lr 7.50e-05  289s
+   peak GPU memory 8.4 GiB
+== step 1000: validation perplexity 46.68
+step   1050  loss 1.6128  kd 1.3506  ce 3.9729  lr 7.27e-05  307s
+step   1100  loss 1.4784  kd 1.1964  ce 4.0171  lr 7.03e-05  321s
+step   1150  loss 2.2635  kd 2.0452  ce 4.2285  lr 6.79e-05  335s
+step   1200  loss 1.6281  kd 1.3558  ce 4.0786  lr 6.55e-05  349s
+step   1250  loss 1.5939  kd 1.3109  ce 4.1409  lr 6.29e-05  363s
+step   1300  loss 1.3665  kd 1.0790  ce 3.9543  lr 6.04e-05  376s
+step   1350  loss 1.4203  kd 1.1599  ce 3.7640  lr 5.78e-05  390s
+step   1400  loss 1.5396  kd 1.3113  ce 3.5941  lr 5.52e-05  404s
+step   1450  loss 1.3518  kd 1.0883  ce 3.7234  lr 5.26e-05  418s
+step   1500  loss 1.6376  kd 1.4064  ce 3.7185  lr 5.00e-05  432s
+   peak GPU memory 8.4 GiB
+== step 1500: validation perplexity 46.47
+step   1550  loss 1.5763  kd 1.2929  ce 4.1264  lr 4.74e-05  450s
+step   1600  loss 1.6183  kd 1.3758  ce 3.8015  lr 4.48e-05  464s
+step   1650  loss 1.3947  kd 1.1300  ce 3.7771  lr 4.22e-05  478s
+step   1700  loss 1.2988  kd 1.0625  ce 3.4252  lr 3.96e-05  491s
+step   1750  loss 2.1232  kd 1.8921  ce 4.2028  lr 3.71e-05  505s
+step   1800  loss 1.4525  kd 1.1682  ce 4.0118  lr 3.45e-05  519s
+step   1850  loss 1.4844  kd 1.2471  ce 3.6203  lr 3.21e-05  533s
+step   1900  loss 1.4105  kd 1.1490  ce 3.7643  lr 2.97e-05  547s
+step   1950  loss 1.3784  kd 1.1160  ce 3.7404  lr 2.73e-05  560s
+step   2000  loss 1.9124  kd 1.6282  ce 4.4696  lr 2.50e-05  574s
+   peak GPU memory 8.4 GiB
+== step 2000: validation perplexity 46.08
+step   2050  loss 1.4416  kd 1.1997  ce 3.6193  lr 2.28e-05  592s
+step   2100  loss 1.4393  kd 1.2076  ce 3.5243  lr 2.06e-05  606s
+step   2150  loss 1.7873  kd 1.5661  ce 3.7787  lr 1.85e-05  620s
+step   2200  loss 1.6362  kd 1.3653  ce 4.0740  lr 1.65e-05  634s
+step   2250  loss 1.3746  kd 1.0952  ce 3.8893  lr 1.46e-05  647s
+step   2300  loss 1.4992  kd 1.2353  ce 3.8747  lr 1.28e-05  661s
+step   2350  loss 1.4223  kd 1.1496  ce 3.8766  lr 1.11e-05  675s
+step   2400  loss 1.5795  kd 1.3585  ce 3.5686  lr 9.55e-06  689s
+step   2450  loss 1.7583  kd 1.4922  ce 4.1531  lr 8.07e-06  703s
+step   2500  loss 1.5778  kd 1.3704  ce 3.4443  lr 6.70e-06  716s
+   peak GPU memory 8.4 GiB
+== step 2500: validation perplexity 45.95
+step   2550  loss 1.6011  kd 1.3584  ce 3.7855  lr 5.45e-06  735s
+step   2600  loss 1.4262  kd 1.1557  ce 3.8609  lr 4.32e-06  748s
+step   2650  loss 1.7150  kd 1.4863  ce 3.7737  lr 3.32e-06  762s
+step   2700  loss 1.7465  kd 1.4488  ce 4.4265  lr 2.45e-06  776s
+step   2750  loss 1.3582  kd 1.0998  ce 3.6839  lr 1.70e-06  790s
+step   2800  loss 1.5297  kd 1.2644  ce 3.9171  lr 1.09e-06  804s
+step   2850  loss 1.5147  kd 1.2384  ce 4.0013  lr 6.16e-07  817s
+step   2900  loss 1.3791  kd 1.0995  ce 3.8947  lr 2.74e-07  831s
+step   2950  loss 1.4398  kd 1.1228  ce 4.2927  lr 6.85e-08  845s
+step   3000  loss 1.3523  kd 1.0761  ce 3.8375  lr 0.00e+00  859s
+   peak GPU memory 8.4 GiB
+== step 3000: validation perplexity 45.63
+teacher validation perplexity: 27.76
