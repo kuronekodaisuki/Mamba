@@ -13,7 +13,17 @@
 //   first_tok = 1 treats the previous state as zero (sequence start),
 //   so the state memory never needs to be cleared.
 //
-// Latency in_valid -> out_valid : 5 + log2(N) cycles
+// Pipeline (every multiplier has registered operands and a registered
+// product, so it maps onto DSP input / output registers; the M20K read has
+// address and output registers):
+//   s1  M20K address register        (read in flight)
+//   s2  M20K output register
+//   s3  operands: h_prev (or 0), B[n] of this token, dA, dt*x, D, x
+//   s4  products dA*h, xdt*B, D*x
+//   s5  requantize + add + saturate -> new state, written back;  C[n] selected
+//   s6  products h*C
+//   s7.. adder tree (log2 N), then 2 output stages
+// Latency in_valid -> out_valid : 8 + log2(N) cycles
 // State lives in on-chip RAM (NHEADS*P words x N*W_H bits).
 // -----------------------------------------------------------------------------
 module ssm_scan_unit #(
@@ -55,6 +65,7 @@ module ssm_scan_unit #(
   localparam int DEPTH = NHEADS * P;
   localparam int AW    = $clog2(DEPTH);
   localparam int LVL   = $clog2(N);
+  localparam int WB_LAT = 5;                 // read address -> write-back
 
   // product widths and requantization shifts
   localparam int W_PA = W_A + W_H,  SH_A = F_A;                // dA*h   -> F_H
@@ -76,7 +87,7 @@ module ssm_scan_unit #(
       $fatal(1, "ssm_scan_unit: every requantization shift must be >= 1");
     if ((1 << LVL) != N)
       $fatal(1, "ssm_scan_unit: N must be a power of two");
-    if (DEPTH <= 4)
+    if (DEPTH <= WB_LAT + 1)
       $fatal(1, "ssm_scan_unit: NHEADS*P must exceed the write-back latency");
   end
   // synthesis translate_on
@@ -103,136 +114,133 @@ module ssm_scan_unit #(
   end
 
   // ---------------------------------------------------------------------------
-  // State memory: one word = N lanes of one (head, p) row.
-  // A row is read at stage 0 and written back at stage 3; the same row is
-  // not read again until the next token (>= DEPTH cycles later), so there is
-  // no read-after-write hazard.
+  // Row control / operands travelling with the data
   // ---------------------------------------------------------------------------
-  // max_depth = 2048 makes Quartus use the 2048 x 10 M20K mode. Without it the
-  // 24-bit lanes are mapped one by one into 512 x 40 blocks (60% efficiency).
-  (* ramstyle = "M20K, no_rw_check" *)
-  logic [N*W_H-1:0]      state_mem [DEPTH];
-  logic [N*W_H-1:0]      rd_data;
-  logic [AW-1:0]         raddr, waddr;
-  logic                  wr_en;
-  logic [N-1:0][W_H-1:0] wr_data;
+  typedef struct packed {
+    logic                  v;
+    logic                  bank;
+    logic [HW-1:0]         h;
+    logic [PW-1:0]         p;
+    logic [AW-1:0]         a;
+    logic signed [W_A-1:0] dA;
+    logic signed [W_X-1:0] xdt;
+    logic signed [W_X-1:0] x;
+    logic signed [W_D-1:0] D;
+  } row_t;
+
+  row_t r0, r1, r2, r3, r4, r5;
+  logic [AW-1:0] raddr;
 
   assign raddr = AW'(in_head) * AW'(P) + AW'(in_p);
+  assign r0    = '{v: in_valid, bank: bank, h: in_head, p: in_p, a: raddr,
+                   dA: in_dA, xdt: in_xdt, x: in_x, D: in_D};
+
+  always_ff @(posedge clk) begin
+    r1 <= r0;  r2 <= r1;  r3 <= r2;  r4 <= r3;  r5 <= r4;
+    r1.v <= rst_n & r0.v;
+    r2.v <= rst_n & r1.v;
+    r3.v <= rst_n & r2.v;
+    r4.v <= rst_n & r3.v;
+    r5.v <= rst_n & r4.v;
+  end
+
+  // ---------------------------------------------------------------------------
+  // State memory: one word = N lanes of one (head, p) row.
+  // A row is read at s0 and written back at s5; the same row is not read
+  // again until the next token (DEPTH cycles later), so there is no
+  // read-after-write hazard.
+  // ---------------------------------------------------------------------------
+  (* ramstyle = "M20K, no_rw_check" *)
+  logic [N*W_H-1:0]      state_mem [DEPTH];
+  logic [N*W_H-1:0]      rd_s1, rd_s2;         // address reg, output reg
+  logic                  wr_en;
+  logic [AW-1:0]         waddr;
+  logic [N-1:0][W_H-1:0] wr_data;
 
   always_ff @(posedge clk) begin
     if (wr_en) state_mem[waddr] <= wr_data;
-    rd_data <= state_mem[raddr];
+    rd_s1 <= state_mem[raddr];
+    rd_s2 <= rd_s1;
   end
 
   // ---------------------------------------------------------------------------
-  // Stage 1: memory read in flight, register row inputs
+  // s3: multiplier operands
   // ---------------------------------------------------------------------------
-  logic                  s1_v, s1_bank;
-  logic [HW-1:0]         s1_h;
-  logic [PW-1:0]         s1_p;
-  logic [AW-1:0]         s1_a;
-  logic signed [W_A-1:0] s1_dA;
-  logic signed [W_X-1:0] s1_xdt, s1_x;
-  logic signed [W_D-1:0] s1_D;
+  logic [N-1:0][W_H-1:0] op_h;
+  logic [N-1:0][W_B-1:0] op_B;
 
   always_ff @(posedge clk) begin
-    s1_v    <= rst_n & in_valid;
-    s1_bank <= bank;
-    s1_h    <= in_head;
-    s1_p    <= in_p;
-    s1_a    <= raddr;
-    s1_dA   <= in_dA;
-    s1_xdt  <= in_xdt;
-    s1_x    <= in_x;
-    s1_D    <= in_D;
+    op_h <= first_q[r2.bank] ? '0 : rd_s2;
+    op_B <= B_q[r2.bank];
   end
 
   // ---------------------------------------------------------------------------
-  // Stage 2: multiplies  dA*h_prev, xdt*B, D*x
+  // s4: products  dA*h_prev, xdt*B, D*x
   // ---------------------------------------------------------------------------
-  logic [N*W_H-1:0] hprev;
-  assign hprev = first_q[s1_bank] ? '0 : rd_data;
-
-  logic                   s2_v, s2_bank;
-  logic [HW-1:0]          s2_h;
-  logic [PW-1:0]          s2_p;
-  logic [AW-1:0]          s2_a;
-  logic [N-1:0][W_PA-1:0] s2_pa;
-  logic [N-1:0][W_PB-1:0] s2_pb;
-  logic signed [W_PD-1:0] s2_dx;
+  logic [N-1:0][W_PA-1:0] s4_pa;
+  logic [N-1:0][W_PB-1:0] s4_pb;
+  logic signed [W_PD-1:0] s4_dx;
 
   always_ff @(posedge clk) begin
-    s2_v    <= rst_n & s1_v;
-    s2_bank <= s1_bank;
-    s2_h    <= s1_h;
-    s2_p    <= s1_p;
-    s2_a    <= s1_a;
-    s2_dx   <= s1_D * s1_x;
+    s4_dx <= r3.D * r3.x;
     for (int n = 0; n < N; n++) begin
-      s2_pa[n] <= s1_dA  * $signed(hprev[n*W_H +: W_H]);
-      s2_pb[n] <= s1_xdt * $signed(B_q[s1_bank][n]);
+      s4_pa[n] <= r3.dA  * $signed(op_h[n]);
+      s4_pb[n] <= r3.xdt * $signed(op_B[n]);
     end
   end
 
   // ---------------------------------------------------------------------------
-  // Stage 3: requantize, add, saturate -> new state (written back)
+  // s5: requantize, add, saturate -> new state (written back); select C
   // ---------------------------------------------------------------------------
-  logic [N-1:0][W_H-1:0] s2_hnew;
+  logic [N-1:0][W_H-1:0] hnew_c;
 
   for (genvar n = 0; n < N; n++) begin : g_upd
     logic signed [WRA-1:0] ta;
     logic signed [WRB-1:0] tb;
     logic signed [WS1-1:0] ts;
-    rshift_round #(.WI(W_PA), .SHIFT(SH_A)) u_ra (.din(s2_pa[n]), .dout(ta));
-    rshift_round #(.WI(W_PB), .SHIFT(SH_B)) u_rb (.din(s2_pb[n]), .dout(tb));
+    rshift_round #(.WI(W_PA), .SHIFT(SH_A)) u_ra (.din(s4_pa[n]), .dout(ta));
+    rshift_round #(.WI(W_PB), .SHIFT(SH_B)) u_rb (.din(s4_pb[n]), .dout(tb));
     assign ts = WS1'(ta) + WS1'(tb);
-    saturate #(.WI(WS1), .WO(W_H)) u_sat (.din(ts), .dout(s2_hnew[n]));
+    saturate #(.WI(WS1), .WO(W_H)) u_sat (.din(ts), .dout(hnew_c[n]));
   end
 
-  logic                   s3_v, s3_bank;
-  logic [HW-1:0]          s3_h;
-  logic [PW-1:0]          s3_p;
-  logic [AW-1:0]          s3_a;
-  logic [N-1:0][W_H-1:0]  s3_hnew;
-  logic signed [W_PD-1:0] s3_dx;
+  logic [N-1:0][W_H-1:0]  s5_h;
+  logic [N-1:0][W_B-1:0]  s5_C;
+  logic signed [W_PD-1:0] s5_dx;
 
   always_ff @(posedge clk) begin
-    s3_v    <= rst_n & s2_v;
-    s3_bank <= s2_bank;
-    s3_h    <= s2_h;
-    s3_p    <= s2_p;
-    s3_a    <= s2_a;
-    s3_hnew <= s2_hnew;
-    s3_dx   <= s2_dx;
+    s5_h  <= hnew_c;
+    s5_C  <= C_q[r4.bank];
+    s5_dx <= s4_dx;
   end
 
-  assign wr_en   = s3_v;
-  assign waddr   = s3_a;
-  assign wr_data = s3_hnew;
+  assign wr_en   = r5.v;
+  assign waddr   = r5.a;
+  assign wr_data = s5_h;
 
   // ---------------------------------------------------------------------------
-  // Stage 4: h*C
+  // s6: h*C
   // ---------------------------------------------------------------------------
-  logic                   s4_v;
-  logic [HW-1:0]          s4_h;
-  logic [PW-1:0]          s4_p;
-  logic [N-1:0][W_PC-1:0] s4_pc;
-  logic signed [W_PD-1:0] s4_dx;
+  logic [N-1:0][W_PC-1:0] s6_pc;
+  logic signed [W_PD-1:0] s6_dx;
+  logic                   s6_v;
+  logic [HW-1:0]          s6_h;
+  logic [PW-1:0]          s6_p;
 
   always_ff @(posedge clk) begin
-    s4_v  <= rst_n & s3_v;
-    s4_h  <= s3_h;
-    s4_p  <= s3_p;
-    s4_dx <= s3_dx;
+    s6_v  <= rst_n & r5.v;
+    s6_h  <= r5.h;
+    s6_p  <= r5.p;
+    s6_dx <= s5_dx;
     for (int n = 0; n < N; n++)
-      s4_pc[n] <= $signed(s3_hnew[n]) * $signed(C_q[s3_bank][n]);
+      s6_pc[n] <= $signed(s5_h[n]) * $signed(s5_C[n]);
   end
 
   // ---------------------------------------------------------------------------
-  // Stage 5..: reduction over N lanes, control delayed alongside
+  // Reduction over N lanes, control delayed alongside
   // ---------------------------------------------------------------------------
   logic signed [W_SUM-1:0] tree_sum;
-  adder_tree #(.N(N), .WI(W_PC)) u_tree (.clk(clk), .din(s4_pc), .dout(tree_sum));
+  adder_tree #(.N(N), .WI(W_PC)) u_tree (.clk(clk), .din(s6_pc), .dout(tree_sum));
 
   logic [LVL-1:0]           d_v;
   logic [LVL-1:0][HW-1:0]   d_h;
@@ -240,10 +248,10 @@ module ssm_scan_unit #(
   logic [LVL-1:0][W_PD-1:0] d_dx;
 
   always_ff @(posedge clk) begin
-    d_v[0]  <= rst_n & s4_v;
-    d_h[0]  <= s4_h;
-    d_p[0]  <= s4_p;
-    d_dx[0] <= s4_dx;
+    d_v[0]  <= rst_n & s6_v;
+    d_h[0]  <= s6_h;
+    d_p[0]  <= s6_p;
+    d_dx[0] <= s6_dx;
     for (int k = 1; k < LVL; k++) begin
       d_v[k]  <= rst_n & d_v[k-1];
       d_h[k]  <= d_h[k-1];
@@ -253,22 +261,34 @@ module ssm_scan_unit #(
   end
 
   // ---------------------------------------------------------------------------
-  // Output: y = round(sum h*C) + round(D*x), saturated
+  // Output: y = round(sum h*C) + round(D*x), saturated (two stages)
   // ---------------------------------------------------------------------------
-  logic signed [WRC-1:0] tc;
-  logic signed [WRD-1:0] td;
+  logic signed [WRC-1:0] tc, o1_c;
+  logic signed [WRD-1:0] td, o1_d;
+  logic                  o1_v;
+  logic [HW-1:0]         o1_h;
+  logic [PW-1:0]         o1_p;
+
+  rshift_round #(.WI(W_SUM), .SHIFT(SH_C)) u_rc (.din(tree_sum),    .dout(tc));
+  rshift_round #(.WI(W_PD),  .SHIFT(SH_D)) u_rd (.din(d_dx[LVL-1]), .dout(td));
+
+  always_ff @(posedge clk) begin
+    o1_v <= rst_n & d_v[LVL-1];
+    o1_h <= d_h[LVL-1];
+    o1_p <= d_p[LVL-1];
+    o1_c <= tc;
+    o1_d <= td;
+  end
+
   logic signed [WS2-1:0] ys;
   logic signed [W_Y-1:0] y_c;
-
-  rshift_round #(.WI(W_SUM), .SHIFT(SH_C)) u_rc (.din(tree_sum),     .dout(tc));
-  rshift_round #(.WI(W_PD),  .SHIFT(SH_D)) u_rd (.din(d_dx[LVL-1]),  .dout(td));
-  assign ys = WS2'(tc) + WS2'(td);
+  assign ys = WS2'(o1_c) + WS2'(o1_d);
   saturate #(.WI(WS2), .WO(W_Y)) u_ys (.din(ys), .dout(y_c));
 
   always_ff @(posedge clk) begin
-    out_valid <= rst_n & d_v[LVL-1];
-    out_head  <= d_h[LVL-1];
-    out_p     <= d_p[LVL-1];
+    out_valid <= rst_n & o1_v;
+    out_head  <= o1_h;
+    out_p     <= o1_p;
     out_y     <= y_c;
   end
 endmodule

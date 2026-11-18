@@ -7,7 +7,7 @@
 // delta goes on to form dt*x, dA feeds ssm_scan_unit.in_dA (W_DA / F_DA).
 // For decode, Mamba2-130M needs only 24 heads per token per layer, so one
 // head per cycle is plenty; FastMamba uses 24 lanes because it targets prefill.
-// Latency: 18 cycles.
+// Latency: 20 cycles.
 // -----------------------------------------------------------------------------
 module ssm_discretize #(
   parameter int W_RAW = 16, parameter int F_RAW = 10,   // dt_raw, dt_bias
@@ -30,7 +30,7 @@ module ssm_discretize #(
   output logic signed [W_I-1:0]   out_delta,
   output logic signed [W_DA-1:0]  out_dA
 );
-  localparam int NAU_LAT = 7;
+  localparam int NAU_LAT = 8;
   localparam int LAT     = 1 + NAU_LAT + 2 + NAU_LAT + 1;
 
   // ---- z = dt_raw + dt_bias, aligned to the NAU format ----------------------
