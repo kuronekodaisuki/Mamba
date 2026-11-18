@@ -15,11 +15,11 @@ set_global_assignment -name TOP_LEVEL_ENTITY syn_top
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 
 foreach f {
-  ../rtl/fixed_point.sv
-  ../rtl/adder_tree.sv
-  ../rtl/ssm_scan_unit.sv
-  ../rtl/nau.sv
-  ../rtl/ssm_discretize.sv
+  fixed_point.sv
+  adder_tree.sv
+  ssm_scan_unit.sv
+  nau.sv
+  ssm_discretize.sv
   syn_top.sv
 } {
   set_global_assignment -name SYSTEMVERILOG_FILE $f
