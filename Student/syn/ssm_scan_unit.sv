@@ -164,15 +164,35 @@ module ssm_scan_unit #(
   end
 
   // ---------------------------------------------------------------------------
+  // Per-lane copies of the bank select and of the "first token" clear, one
+  // stage early, so no single register fans out to all N lanes (dont_merge
+  // keeps Quartus from merging the copies back into one register).
+  // ---------------------------------------------------------------------------
+  (* dont_merge *) logic [N-1:0] sel_s2;    // bank of the row now in s2
+  (* dont_merge *) logic [N-1:0] clr_s2;    // first token of that bank
+  (* dont_merge *) logic [N-1:0] sel_s4;    // bank of the row now in s4
+
+  always_ff @(posedge clk)
+    for (int n = 0; n < N; n++) begin
+      sel_s2[n] <= r1.bank;
+      clr_s2[n] <= first_q[r1.bank];
+      sel_s4[n] <= r3.bank;
+    end
+
+  // ---------------------------------------------------------------------------
   // s3: multiplier operands
   // ---------------------------------------------------------------------------
   logic [N-1:0][W_H-1:0] op_h;
   logic [N-1:0][W_B-1:0] op_B;
+  logic [N-1:0][W_H-1:0] rd_lanes;
 
-  always_ff @(posedge clk) begin
-    op_h <= first_q[r2.bank] ? '0 : rd_s2;
-    op_B <= B_q[r2.bank];
-  end
+  assign rd_lanes = rd_s2;
+
+  always_ff @(posedge clk)
+    for (int n = 0; n < N; n++) begin
+      op_h[n] <= clr_s2[n] ? '0 : rd_lanes[n];
+      op_B[n] <= B_q[sel_s2[n]][n];
+    end
 
   // ---------------------------------------------------------------------------
   // s4: products  dA*h_prev, xdt*B, D*x
@@ -210,8 +230,9 @@ module ssm_scan_unit #(
 
   always_ff @(posedge clk) begin
     s5_h  <= hnew_c;
-    s5_C  <= C_q[r4.bank];
     s5_dx <= s4_dx;
+    for (int n = 0; n < N; n++)
+      s5_C[n] <= C_q[sel_s4[n]][n];
   end
 
   assign wr_en   = r5.v;

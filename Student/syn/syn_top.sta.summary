@@ -3,12 +3,12 @@ Timing Analyzer Summary
 ------------------------------------------------------------
 
 Type  : Setup 'clk'
-Slack : -0.878
-TNS   : -740.810
-Corner: Slow 900mV 100C Model
+Slack : -0.816
+TNS   : -188.905
+Corner: Slow 900mV -40C Model
 
 Type  : Hold 'clk'
-Slack : 0.014
+Slack : 0.012
 TNS   : 0.000
 Corner: Fast 900mV -40C Model
 

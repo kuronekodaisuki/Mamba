@@ -195,14 +195,15 @@ module nau #(
   end
 
   // ---- stage 8: y + max(x,0), saturate ---------------------------------------
-  logic signed [W_I+1:0] sum8;
-  logic signed [W_I-1:0] sat8;
+  // Both terms are >= 0 (ycorr7 <= 1.0, pos7 = max(x,0) < 2^(W_I-1)), so the
+  // sum fits W_I unsigned bits and only the upper bound can be exceeded:
+  // overflow is just its MSB. Same result as saturate(), one carry chain less.
+  logic [W_I-1:0] sum8;
 
-  assign sum8 = (W_I+2)'($signed({1'b0, ycorr7})) + (W_I+2)'(pos7);
-  saturate #(.WI(W_I+2), .WO(W_I)) u_sat (.din(sum8), .dout(sat8));
+  assign sum8 = W_I'(ycorr7) + W_I'(pos7[W_I-2:0]);
 
   always_ff @(posedge clk) begin
     out_valid <= rst_n & v7;
-    out_y     <= sat8;
+    out_y     <= sum8[W_I-1] ? {1'b0, {(W_I-1){1'b1}}} : sum8;
   end
 endmodule
