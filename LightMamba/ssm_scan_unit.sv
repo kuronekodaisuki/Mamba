@@ -108,7 +108,9 @@ module ssm_scan_unit #(
   // not read again until the next token (>= DEPTH cycles later), so there is
   // no read-after-write hazard.
   // ---------------------------------------------------------------------------
-  (* ramstyle = "M20K, no_rw_check" *)
+  // max_depth = 2048 makes Quartus use the 2048 x 10 M20K mode. Without it the
+  // 24-bit lanes are mapped one by one into 512 x 40 blocks (60% efficiency).
+  (* ramstyle = "M20K, no_rw_check", max_depth = 2048 *)
   logic [N*W_H-1:0]      state_mem [DEPTH];
   logic [N*W_H-1:0]      rd_data;
   logic [AW-1:0]         raddr, waddr;
