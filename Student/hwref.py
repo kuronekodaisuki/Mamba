@@ -138,7 +138,7 @@ class NauVec:
 # reference model
 # ----------------------------------------------------------------------------
 class HwRef:
-    def __init__(self, npz_path, mode="fixed", golden_dir=None):
+    def __init__(self, npz_path, mode="fixed", golden_dir=None, state_fmt=None):
         z = np.load(npz_path)
         self.p = {k: z[k] for k in z.files}
         self.cfg = json.loads(str(self.p.pop("cfg_json")))
@@ -150,6 +150,7 @@ class HwRef:
         c = self.cfg
         self.di = c["expand"] * c["d_model"]
         self.H = self.di // c["headdim"]
+        self.state_fmt = state_fmt or (self.sg.W_H, self.sg.F_H)
         self.stats = {}
 
     def _count(self, key, n):
@@ -211,8 +212,12 @@ class HwRef:
         xdt = sat(rsr(delta[:, :, None] * x_q, ng.F_O + sg.F_X - sg.F_XD), sg.W_X)
         self._count("clip dt*x", int(np.count_nonzero(
             xdt != rsr(delta[:, :, None] * x_q, ng.F_O + sg.F_X - sg.F_XD))))
+        sg.set_state_format(*self.state_fmt)
+        sg.STATS["max_h"] = 0
         y, n_sat = sg.run_fixed(dict(dA=dA, xdt=xdt, x=x_q, B=B_q, C=C_q, D=D))
         self._count("saturated SSM state", n_sat)
+        self.stats["max |state|"] = max(self.stats.get("max |state|", 0.0),
+                                        round(sg.STATS["max_h"] / 2 ** sg.F_H, 3))
         return (y / 2 ** sg.F_Y).astype(np.float32)
 
     def block(self, u, i):

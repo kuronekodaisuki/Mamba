@@ -181,7 +181,7 @@ def export(ckpt_path, out_dir, golden_dir):
 
 
 # ---------------------------------------------------------------------------
-def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float):
+def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts):
     import train                                   # token stream (datasets, transformers)
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
@@ -194,7 +194,7 @@ def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float):
     model = StudentLM(cfg).to(dev).eval()
     model.load_state_dict(ck["model"])
     npz = os.path.join(out_dir, "weights.npz")
-    refs = {"fixed": HwRef(npz, "fixed", golden_dir)}
+    refs = {f"fixed W{w}F{f}": HwRef(npz, "fixed", golden_dir, (w, f)) for w, f in state_fmts}
     if with_float:
         refs["float"] = HwRef(npz, "float", golden_dir)
 
@@ -224,9 +224,11 @@ def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float):
     print(f"\nverification on {n_seq} x {seq} validation tokens")
     print(f"  torch QAT model (fp32)        : perplexity {math.exp(nll['torch'] / n_tok):.2f}")
     for k in refs:
-        print(f"  hwref {k:5s} (exported ints)  : perplexity {math.exp(nll[k] / n_tok):.2f}"
+        print(f"  hwref {k:12s}: perplexity {math.exp(nll[k] / n_tok):.2f}"
               f"   top-1 agreement with torch {agree[k] / n_tok:.1%}")
-    print("  fixed-point events:", refs["fixed"].stats)
+    for k, ref in refs.items():
+        if k != "float":
+            print(f"  {k} fixed-point events:", ref.stats)
 
 
 if __name__ == "__main__":
@@ -237,7 +239,10 @@ if __name__ == "__main__":
     ap.add_argument("--verify", type=int, default=0, help="number of validation sequences")
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--float-ref", action="store_true", help="also run hwref with float SSM/NAU")
+    ap.add_argument("--state-fmt", default="24:16",
+                    help="SSM state formats W_H:F_H to compare, e.g. 24:16,20:16,20:14")
     a = ap.parse_args()
+    fmts = [tuple(int(v) for v in f.split(":")) for f in a.state_fmt.split(",")]
     cfg, ck = export(a.ckpt, a.out, a.golden_dir)
     if a.verify:
-        verify(cfg, ck, a.out, a.verify, a.seq, a.golden_dir, a.float_ref)
+        verify(cfg, ck, a.out, a.verify, a.seq, a.golden_dir, a.float_ref, fmts)

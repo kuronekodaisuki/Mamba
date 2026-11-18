@@ -23,6 +23,18 @@ SH_C = F_H + F_B - F_Y
 SH_D = F_D + F_X - F_Y
 
 
+STATS = {"max_h": 0}     # largest |state| (in LSBs) seen by run_fixed
+
+
+def set_state_format(w_h, f_h):
+    """Change the state format (W_H, F_H) and the shifts that depend on it."""
+    global W_H, F_H, SH_B, SH_C
+    W_H, F_H = w_h, f_h
+    SH_B = F_XD + F_B - F_H
+    SH_C = F_H + F_B - F_Y
+    assert SH_B >= 1 and SH_C >= 1, "unsupported state format"
+
+
 def sat(v, w):
     return np.clip(v, -(1 << (w - 1)), (1 << (w - 1)) - 1)
 
@@ -83,6 +95,7 @@ def run_fixed(q):
         raw = ta + tb
         h = sat(raw, W_H)
         n_sat += int(np.count_nonzero(raw != h))
+        STATS["max_h"] = max(STATS["max_h"], int(np.abs(raw).max()))
         sc = (h * q["C"][t]).sum(-1)
         y[t] = sat(rsr(sc, SH_C) + rsr(q["D"][:, None] * q["x"][t], SH_D), W_Y)
     return y, n_sat
@@ -104,7 +117,10 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="vec")
     ap.add_argument("--no-write", action="store_true")
+    ap.add_argument("--wh", type=int, default=W_H, help="state width W_H")
+    ap.add_argument("--fh", type=int, default=F_H, help="state fraction F_H")
     a = ap.parse_args()
+    set_state_format(a.wh, a.fh)
 
     rng = np.random.default_rng(a.seed)
     v = make_inputs(rng, a.N, a.P, a.heads, a.T)
