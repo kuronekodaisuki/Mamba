@@ -149,19 +149,34 @@ module ssm_scan_unit #(
   // A row is read at s0 and written back at s5; the same row is not read
   // again until the next token (DEPTH cycles later), so there is no
   // read-after-write hazard.
+  //
+  // The word is split into NMEM memories of MW bits so that each one matches
+  // the 40-bit M20K width (W_H = 20: 2 lanes per memory, 32 memories,
+  // 12 blocks each = 384 M20K). One 1280-bit memory was mapped by Quartus at
+  // only 60% efficiency.
   // ---------------------------------------------------------------------------
-  (* ramstyle = "M20K, no_rw_check" *)
-  logic [N*W_H-1:0]      state_mem [DEPTH];
-  logic [N*W_H-1:0]      rd_s1, rd_s2;         // address reg, output reg
+  localparam int M20K_W = 40;
+  localparam int LPM  = (M20K_W % W_H == 0 && N % (M20K_W / W_H) == 0) ? M20K_W / W_H : 1;
+  localparam int NMEM = N / LPM;               // memories
+  localparam int MW   = LPM * W_H;             // bits per memory
+
+  wire  [N*W_H-1:0]      rd_s1;                // read data (address registered)
+  logic [N*W_H-1:0]      rd_s2;                // output register
   logic                  wr_en;
   logic [AW-1:0]         waddr;
   logic [N-1:0][W_H-1:0] wr_data;
+  logic [N*W_H-1:0]      wr_flat;
 
-  always_ff @(posedge clk) begin
-    if (wr_en) state_mem[waddr] <= wr_data;
-    rd_s1 <= state_mem[raddr];
-    rd_s2 <= rd_s1;
+  assign wr_flat = wr_data;
+
+  for (genvar j = 0; j < NMEM; j++) begin : g_mem
+    sdp_ram #(.W(MW), .D(DEPTH)) u_ram (
+      .clk(clk), .we(wr_en), .waddr(waddr), .wdata(wr_flat[j*MW +: MW]),
+      .raddr(raddr), .rdata(rd_s1[j*MW +: MW]));
   end
+
+  always_ff @(posedge clk)
+    rd_s2 <= rd_s1;
 
   // ---------------------------------------------------------------------------
   // Per-lane copies of the bank select and of the "first token" clear, one
