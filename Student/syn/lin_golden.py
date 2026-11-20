@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Test vectors for rtl/lin_dot.sv (int8 activations x int4 weights, K lanes).
+"""Golden model and test vectors for the linear-layer datapath.
 
-  python3 model/lin_golden.py --out vec            # 1000 vectors, K = 128
+rtl/lin_dot.sv   : int8 activations x int4 weights, K lanes (exact integer)
+rtl/lin_scale.sv : rescale one output row from its group sums (lin_rescale below)
+
+  python3 model/lin_golden.py --out vec            # 1000 dot vectors, K = 128
+  python3 model/lin_golden.py --scale --out vec    # rescale vectors
 
 Files (one vector per line, hex, lane k in the low bits):
   vec/lin_w.hex  K int4   (K*4 bits, same packing as student/export.py hex/L??_*_w.hex)
@@ -14,6 +18,47 @@ import os
 import numpy as np
 
 
+# ----------------------------------------------------------------------------
+# Row rescale: y = 2^k * sum_g acc_g * s_g with ONE rounding to float32
+#   s_g fp16 = m_g * 2^(E_g - 25)   (normal),   m_g = 1024 + frac
+#            = frac * 2^-24          (subnormal)
+#   so s_g = m_g * 2^(sh_g - 24) with sh_g = max(E_g - 1, 0): every term is an
+#   integer m_g * acc_g << sh_g in units of 2^-24, summed exactly, then rounded
+#   (round-to-nearest-even) to float32 and scaled by 2^(k - 24).
+# Results whose unrounded exponent is below the float32 normal range flush to +0.
+# ----------------------------------------------------------------------------
+def fp16_fields(s16):
+    b = np.asarray(s16, np.float16).view(np.uint16).astype(np.int64)
+    sign, E, F = (b >> 15) & 1, (b >> 10) & 31, b & 1023
+    assert (E < 31).all(), "inf / nan scale"
+    m = np.where(E == 0, F, F | 1024) * np.where(sign == 1, -1, 1)
+    sh = np.where(E == 0, 0, E - 1)
+    return m, sh
+
+
+def int_to_f32(total, e2):
+    """Round integer total * 2^e2 (e2 int array or scalar) to float32 (RNE, FTZ)."""
+    total = np.asarray(total, np.int64)
+    assert (np.abs(total) < 2 ** 53).all()
+    f = total.astype(np.float64)                     # exact
+    _, ex = np.frexp(np.abs(f))                      # |total| in [2^(ex-1), 2^ex)
+    biased = (ex - 1) + e2 + 127
+    y = (f * np.exp2(np.asarray(e2, np.float64))).astype(np.float32)   # one rounding
+    return np.where((total == 0) | (biased <= 0), np.float32(0), y).astype(np.float32)
+
+
+def lin_rescale(acc, s16, k):
+    """acc (..., O, G) int group sums, s16 (O, G) fp16, k (...,) or (..., 1) int."""
+    m, sh = fp16_fields(s16)
+    total = (np.asarray(acc, np.int64) * m << sh).sum(-1)
+    k = np.asarray(k, np.int64)
+    if k.ndim == total.ndim and k.shape[-1] == 1:
+        k = k
+    elif k.ndim == total.ndim - 1:
+        k = k[..., None]
+    return int_to_f32(total, k - 24)
+
+
 def pack(v, bits):
     m = (1 << bits) - 1
     x = 0
@@ -22,13 +67,49 @@ def pack(v, bits):
     return f"{x:0{(len(v) * bits + 3) // 4}x}"
 
 
+def scale_vectors(out, n_rows, seed):
+    """vec/lsc_in.hex : one beat per line, 45 bits
+                        {first[44], last[43], k[42:35], scale[34:19], acc[18:0]}
+       vec/lsc_y.hex  : one float32 per row"""
+    rng = np.random.default_rng(seed)
+    beats, ys = [], []
+    for r in range(n_rows):
+        G = int(rng.choice([1, 2, 4]))
+        acc = rng.integers(-131072, 131073, G)
+        if r < 4:
+            acc[:] = [131072, -131072, 0, 1][r]
+        s = np.exp(rng.uniform(np.log(1e-4), np.log(2.0), G)).astype(np.float16)
+        if r == 5:
+            s[:] = np.float16(6e-8)                  # fp16 subnormal
+        if r == 6:
+            s[0] = -s[0]
+        k = int(rng.integers(-20, 4))
+        y = lin_rescale(acc[None, :], s[None, :], np.array([k]))[0]
+        for g in range(G):
+            word = ((int(g == 0) << 44) | (int(g == G - 1) << 43) | ((k & 0xFF) << 35)
+                    | (int(s[g].view(np.uint16)) << 19) | (int(acc[g]) & 0x7FFFF))
+            beats.append(f"{word:012x}")
+        ys.append(f"{int(np.float32(y).view(np.uint32)):08x}")
+    with open(f"{out}/lsc_in.hex", "w") as f:
+        f.writelines(b + "\n" for b in beats)
+    with open(f"{out}/lsc_y.hex", "w") as f:
+        f.writelines(y + "\n" for y in ys)
+    print(f"{n_rows} rows, {len(beats)} beats -> {out}/lsc_*.hex")
+    return len(beats)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--K", type=int, default=128)
     ap.add_argument("--n", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="vec")
+    ap.add_argument("--scale", action="store_true", help="vectors for rtl/lin_scale.sv")
     a = ap.parse_args()
+    if a.scale:
+        os.makedirs(a.out, exist_ok=True)
+        scale_vectors(a.out, a.n, a.seed)
+        return
     K = a.K
     w_o = 12 + int(np.log2(K))
     rng = np.random.default_rng(a.seed)

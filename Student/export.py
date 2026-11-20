@@ -181,7 +181,12 @@ def export(ckpt_path, out_dir, golden_dir):
 
 
 # ---------------------------------------------------------------------------
-def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts):
+def load_val_rows(out_dir, n_seq, seq):
+    """Validation token blocks, cached in out_dir so later runs need no network."""
+    cache = os.path.join(out_dir, f"val_tokens_{n_seq}x{seq}.npy")
+    if os.path.exists(cache):
+        print(f"using cached validation tokens {cache}")
+        return np.load(cache).tolist()
     import train                                   # token stream (datasets, transformers)
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
@@ -189,6 +194,12 @@ def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts):
                               text_field="text", seq=seq)
     stream = train.token_stream(args, tok, "validation")
     rows = [next(stream) for _ in range(n_seq)]
+    np.save(cache, np.array(rows, dtype=np.int32))
+    return rows
+
+
+def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts):
+    rows = load_val_rows(out_dir, n_seq, seq)
 
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     model = StudentLM(cfg).to(dev).eval()

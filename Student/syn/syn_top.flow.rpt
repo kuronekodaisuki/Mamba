@@ -1,0 +1,116 @@
+Flow report for syn_top
+Wed Nov 18 14:46:53 2026
+Quartus Prime Version 25.3.0 Build 109 09/24/2025 SC Pro Edition
+
+
+---------------------
+; Table of Contents ;
+---------------------
+  1. Flow Summary
+  2. Flow Settings
+  3. Flow Non-Default Global Settings
+  4. Flow Elapsed Time
+  5. Flow OS Summary
+  6. Flow Log
+  7. Legal Notice
+
+
+
++--------------------------------------------------------------------------+
+; Flow Summary                                                             ;
++-----------------------------+--------------------------------------------+
+; Flow Status                 ; Successful - Wed Nov 18 14:46:18 2026      ;
+; Quartus Prime Version       ; 25.3.0 Build 109 09/24/2025 SC Pro Edition ;
+; Revision Name               ; syn_top                                    ;
+; Top-level Entity Name       ; syn_top                                    ;
+; Family                      ; Arria 10                                   ;
+; Device                      ; 10AX115S2F45I1SG                           ;
+; Timing Models               ; Final                                      ;
+; Power Models                ; Final                                      ;
+; Device Status               ; Final                                      ;
+; Logic utilization (in ALMs) ; 5,571 / 427,200 ( 1 % )                    ;
+; Total registers             ; 13231                                      ;
+; Total pins                  ; 8 / 960 ( < 1 % )                          ;
+; Total virtual pins          ; 0                                          ;
+; Total block memory bits     ; 9,437,184 / 55,562,240 ( 17 % )            ;
+; Total RAM Blocks            ; 768 / 2,713 ( 28 % )                       ;
+; Total DSP Blocks            ; 167 / 1,518 ( 11 % )                       ;
+; Total HSSI RX channels      ; 0 / 72 ( 0 % )                             ;
+; Total HSSI TX channels      ; 0 / 72 ( 0 % )                             ;
+; Total PLLs                  ; 0 / 144 ( 0 % )                            ;
++-----------------------------+--------------------------------------------+
+
+
++-----------------------------------------+
+; Flow Settings                           ;
++-------------------+---------------------+
+; Option            ; Setting             ;
++-------------------+---------------------+
+; Start date & time ; 11/18/2026 14:41:40 ;
+; Main task         ; Compilation         ;
+; Revision Name     ; syn_top             ;
++-------------------+---------------------+
+
+
++------------------------------------------------------------------------------------------------------+
+; Flow Non-Default Global Settings                                                                     ;
++-------------------------+---------------------------------+---------------+-------------+------------+
+; Assignment Name         ; Value                           ; Default Value ; Entity Name ; Section Id ;
++-------------------------+---------------------------------+---------------+-------------+------------+
+; COMPILER_SIGNATURE_ID   ; 136738743257134.179498050025486 ; --            ; --          ; --         ;
+; NUM_PARALLEL_PROCESSORS ; All                             ; --            ; --          ; --         ;
++-------------------------+---------------------------------+---------------+-------------+------------+
+
+
++------------------------------------------------------+
+; Flow Elapsed Time                                    ;
++-----------------+--------------+---------------------+
+; Module Name     ; Elapsed Time ; Peak Virtual Memory ;
++-----------------+--------------+---------------------+
+; Synthesis       ; 00:00:17     ; 2194 MB             ;
+; Fitter          ; 00:03:46     ; 9541 MB             ;
+; Timing Analyzer ; 00:00:05     ; 2884 MB             ;
+; Total           ; 00:04:08     ; --                  ;
++-----------------+--------------+---------------------+
+
+
++----------------------------------------------------------------------------+
+; Flow OS Summary                                                            ;
++-----------------+------------------+---------+------------+----------------+
+; Module Name     ; Machine Hostname ; OS Name ; OS Version ; Processor type ;
++-----------------+------------------+---------+------------+----------------+
+; Synthesis       ; Ryzen5600X       ; Ubuntu  ; 22         ; x86_64         ;
+; Fitter          ; Ryzen5600X       ; Ubuntu  ; 22         ; x86_64         ;
+; Timing Analyzer ; Ryzen5600X       ; Ubuntu  ; 22         ; x86_64         ;
++-----------------+------------------+---------+------------+----------------+
+
+
+------------
+; Flow Log ;
+------------
+quartus_syn syn_top
+quartus_fit syn_top
+quartus_sta syn_top
+
+
+
+----------------
+; Legal Notice ;
+----------------
+Copyright (C) 2025  Altera Corporation. All rights reserved.
+Your use of Altera Corporation's design tools, logic functions 
+and other software and tools, and any partner logic 
+functions, and any output files from any of the foregoing 
+(including device programming or simulation files), and any 
+associated documentation or information are expressly subject 
+to the terms and conditions of the Altera Program License 
+Subscription Agreement, the Altera Quartus Prime License Agreement,
+the Altera IP License Agreement, or other applicable license
+agreement, including, without limitation, that your use is for
+the sole purpose of programming logic devices manufactured by
+Altera and sold by Altera or its authorized distributors.  Please
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
+
+
+

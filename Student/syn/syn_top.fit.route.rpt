@@ -1,0 +1,252 @@
+Fitter Route Stage Report for syn_top
+Wed Nov 18 14:45:26 2026
+Quartus Prime Version 25.3.0 Build 109 09/24/2025 SC Pro Edition
+
+
+---------------------
+; Table of Contents ;
+---------------------
+  1. Legal Notice
+  2. Nets with Highest Wire Count
+  3. Delay Chain Summary
+  4. Routing Usage Summary
+  5. Route Messages
+  6. Estimated Delay Added for Hold Timing Summary
+  7. Estimated Delay Added for Hold Timing Details
+
+
+
+----------------
+; Legal Notice ;
+----------------
+Copyright (C) 2025  Altera Corporation. All rights reserved.
+Your use of Altera Corporation's design tools, logic functions 
+and other software and tools, and any partner logic 
+functions, and any output files from any of the foregoing 
+(including device programming or simulation files), and any 
+associated documentation or information are expressly subject 
+to the terms and conditions of the Altera Program License 
+Subscription Agreement, the Altera Quartus Prime License Agreement,
+the Altera IP License Agreement, or other applicable license
+agreement, including, without limitation, that your use is for
+the sole purpose of programming logic devices manufactured by
+Altera and sold by Altera or its authorized distributors.  Please
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
+
+
+
++------------------------------------------------+
+; Nets with Highest Wire Count                   ;
++----------------+----------------------+--------+
+; Net            ; Number of Wires Used ; Fanout ;
++----------------+----------------------+--------+
+; u_scan|r5.v    ; 1171                 ; 3074   ;
+; u_scan|r5.p[2] ; 958                  ; 1538   ;
+; sh[105]        ; 925                  ; 1539   ;
+; u_scan|r5.h[0] ; 924                  ; 1538   ;
+; u_scan|r5.p[5] ; 913                  ; 1538   ;
+; sh[114]        ; 908                  ; 1539   ;
+; u_scan|r5.h[3] ; 890                  ; 1538   ;
+; u_scan|r5.p[0] ; 888                  ; 1538   ;
+; u_scan|r5.h[4] ; 885                  ; 1538   ;
+; u_scan|r5.h[6] ; 880                  ; 1538   ;
++----------------+----------------------+--------+
+
+
++---------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Delay Chain Summary                                                                                                                                     ;
++--------+----------+---------------------+--------------------+----------------+-----------------------------------+-------------------------------------+
+; Name   ; Pin Type ; Input Delay Chain 0 ; Output Delay Chain ; OE Delay Chain ; IO_12_LANE Input Data Delay Chain ; IO_12_LANE Input Strobe Delay Chain ;
++--------+----------+---------------------+--------------------+----------------+-----------------------------------+-------------------------------------+
+; sout   ; Output   ; --                  ; 0                  ; 0              ; --                                ; --                                  ;
+; clk    ; Input    ; 0                   ; --                 ; --             ; --                                ; --                                  ;
+; rst_n  ; Input    ; 0                   ; --                 ; --             ; --                                ; --                                  ;
+; ctl[3] ; Input    ; 0                   ; --                 ; --             ; --                                ; --                                  ;
+; ctl[1] ; Input    ; 0                   ; --                 ; --             ; --                                ; --                                  ;
+; ctl[2] ; Input    ; 0                   ; --                 ; --             ; --                                ; --                                  ;
+; ctl[0] ; Input    ; 0                   ; --                 ; --             ; --                                ; --                                  ;
+; sin    ; Input    ; 0                   ; --                 ; --             ; --                                ; --                                  ;
++--------+----------+---------------------+--------------------+----------------+-----------------------------------+-------------------------------------+
+
+
++------------------------------------------------------------+
+; Routing Usage Summary                                      ;
++------------------------------+-----------------------------+
+; Routing Resource Type        ; Usage                       ;
++------------------------------+-----------------------------+
+; Block interconnects          ; 57,047 / 3,375,986 ( 2 % )  ;
+; C27 interconnects            ; 1,528 / 56,741 ( 3 % )      ;
+; C4 interconnects             ; 34,220 / 2,570,048 ( 1 % )  ;
+; Direct links                 ; 4,260 / 3,375,986 ( < 1 % ) ;
+; Global clocks                ; 1 / 32 ( 3 % )              ;
+; Periphery clocks             ; 0 / 910 ( 0 % )             ;
+; R3 interconnects             ; 19,339 / 1,214,760 ( 2 % )  ;
+; R32 interconnects            ; 2,598 / 99,472 ( 3 % )      ;
+; R32/C27 interconnect drivers ; 2,251 / 385,136 ( < 1 % )   ;
+; R6 interconnects             ; 28,228 / 2,336,152 ( 1 % )  ;
+; Regional clock lefts         ; 0 / 16 ( 0 % )              ;
+; Regional clock out bottoms   ; 0 / 16 ( 0 % )              ;
+; Regional clock out tops      ; 0 / 16 ( 0 % )              ;
+; Regional clock rights        ; 0 / 16 ( 0 % )              ;
+; Regional clocks              ; 0 / 16 ( 0 % )              ;
+; Spine buffers                ; 8 / 704 ( 1 % )             ;
+; Spine clocks                 ; 14 / 1,056 ( 1 % )          ;
+; Spine feedthroughs           ; 0 / 1,024 ( 0 % )           ;
++------------------------------+-----------------------------+
+
+
++----------------+
+; Route Messages ;
++----------------+
+Info (20030): Parallel compilation is enabled and will use 24 of the 32 processors detected
+Info: *******************************************************************
+Info: Running Quartus Prime Fitter
+    Info: Version 25.3.0 Build 109 09/24/2025 SC Pro Edition
+    Info: Copyright (C) 2025  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Wed Nov 18 14:42:32 2026
+    Info: System process ID: 288517
+Info: Command: quartus_fit syn_top
+Info: qfit2_default_script.tcl version: #1
+Info: Project  = syn_top
+Info: Revision = syn_top
+Info (22300): Design uses Placement Effort Multiplier = 1.0.
+Info (170193): Fitter routing operations beginning
+Info (170202): The Fitter performed an Auto Fit compilation.  No optimizations were skipped because the design's timing and routability requirements required full optimization.
+Info (25133): Total time spent on timing analysis during Routing is 1.84 seconds.
+Info (16607): Fitter routing operations ending: elapsed time is 00:01:07
+
+
++------------------------------------------------------------+
+; Estimated Delay Added for Hold Timing Summary              ;
++-----------------+----------------------+-------------------+
+; Source Clock(s) ; Destination Clock(s) ; Delay Added in ns ;
++-----------------+----------------------+-------------------+
+; clk             ; clk                  ; 2588.3            ;
++-----------------+----------------------+-------------------+
+Note: For more information on problematic transfers, consider running the Fitter again with the Optimize hold timing option (Settings Menu) turned off.
+This will disable optimization of problematic paths and expose them for further analysis using the Timing Analyzer.
+
+
++-------------------------------------------------------------------------------+
+; Estimated Delay Added for Hold Timing Details                                 ;
++----------------------------+------------------------------+-------------------+
+; Source Register            ; Destination Register         ; Delay Added in ns ;
++----------------------------+------------------------------+-------------------+
+; sh[2118]                   ; u_scan|B_q[0][61][1]         ; 0.483             ;
+; sh[524]                    ; u_scan|C_q[0][25][7]         ; 0.476             ;
+; sh[1787]                   ; u_scan|B_q[0][40][6]         ; 0.472             ;
+; sh[846]                    ; u_scan|C_q[0][45][9]         ; 0.422             ;
+; sh[882]                    ; u_scan|C_q[0][47][13]        ; 0.412             ;
+; sh[1466]                   ; u_scan|B_q[0][20][5]         ; 0.405             ;
+; u_scan|r1.x[0]             ; u_scan|r2.x[0]               ; 0.392             ;
+; sh[1796]                   ; u_scan|B_q[0][40][15]        ; 0.389             ;
+; sh[222]                    ; u_scan|C_q[0][6][9]          ; 0.385             ;
+; u_scan|r1.D[10]            ; u_scan|r2.D[10]              ; 0.358             ;
+; u_scan|C_q[1][30][13]      ; u_scan|s5_C[30][13]          ; 0.338             ;
+; u_scan|C_q[1][40][0]       ; u_scan|s5_C[40][0]           ; 0.328             ;
+; u_scan|C_q[1][24][5]       ; u_scan|s5_C[24][5]           ; 0.325             ;
+; sh[213]                    ; u_scan|C_q[0][6][0]          ; 0.322             ;
+; u_scan|C_q[1][56][8]       ; u_scan|s5_C[56][8]           ; 0.322             ;
+; u_scan|r1.D[11]            ; u_scan|r2.D[11]              ; 0.319             ;
+; u_scan|C_q[1][40][8]       ; u_scan|s5_C[40][8]           ; 0.318             ;
+; u_disc|u_dA|r[8][15]       ; u_disc|mult_0~DATAOUTA0~reg0 ; 0.318             ;
+; u_scan|r1.D[0]             ; u_scan|r2.D[0]               ; 0.315             ;
+; u_disc|u_softplus|pos6[18] ; u_disc|u_softplus|pos7[18]   ; 0.315             ;
+; u_scan|r1.D[2]             ; u_scan|r2.D[2]               ; 0.312             ;
+; sh[1033]                   ; sh[1034]                     ; 0.311             ;
+; u_scan|C_q[1][56][7]       ; u_scan|s5_C[56][7]           ; 0.311             ;
+; u_scan|r1.D[6]             ; u_scan|r2.D[6]               ; 0.311             ;
+; sh[1029]                   ; sh[1030]                     ; 0.308             ;
+; u_scan|B_q[1][39][8]       ; u_scan|op_B[39][8]           ; 0.308             ;
+; u_scan|B_q[1][27][8]       ; u_scan|op_B[27][8]           ; 0.308             ;
+; u_scan|C_q[1][53][12]      ; u_scan|s5_C[53][12]          ; 0.308             ;
+; u_scan|r1.D[12]            ; u_scan|r2.D[12]              ; 0.308             ;
+; u_scan|C_q[1][46][2]       ; u_scan|s5_C[46][2]           ; 0.305             ;
+; u_scan|C_q[1][28][5]       ; u_scan|s5_C[28][5]           ; 0.305             ;
+; u_scan|C_q[1][55][9]       ; u_scan|s5_C[55][9]           ; 0.305             ;
+; u_scan|C_q[1][25][8]       ; u_scan|s5_C[25][8]           ; 0.305             ;
+; u_scan|r1.D[13]            ; u_scan|r2.D[13]              ; 0.305             ;
+; u_disc|u_softplus|pos1[17] ; u_disc|u_softplus|pos2[17]   ; 0.305             ;
+; u_scan|B_q[1][29][5]       ; u_scan|op_B[29][5]           ; 0.305             ;
+; u_scan|B_q[1][53][9]       ; u_scan|op_B[53][9]           ; 0.305             ;
+; u_scan|B_q[1][42][2]       ; u_scan|op_B[42][2]           ; 0.302             ;
+; sh[1066]                   ; u_scan|C_q[1][59][5]         ; 0.302             ;
+; u_scan|B_q[1][46][4]       ; u_scan|op_B[46][4]           ; 0.302             ;
+; u_scan|B_q[1][42][3]       ; u_scan|op_B[42][3]           ; 0.302             ;
+; u_scan|B_q[1][24][3]       ; u_scan|op_B[24][3]           ; 0.302             ;
+; u_scan|B_q[1][44][11]      ; u_scan|op_B[44][11]          ; 0.302             ;
+; u_scan|C_q[1][59][8]       ; u_scan|s5_C[59][8]           ; 0.302             ;
+; u_scan|C_q[1][53][9]       ; u_scan|s5_C[53][9]           ; 0.302             ;
+; u_scan|C_q[1][53][2]       ; u_scan|s5_C[53][2]           ; 0.302             ;
+; u_scan|C_q[1][47][14]      ; u_scan|s5_C[47][14]          ; 0.302             ;
+; u_scan|C_q[1][29][14]      ; u_scan|s5_C[29][14]          ; 0.302             ;
+; u_scan|C_q[1][29][12]      ; u_scan|s5_C[29][12]          ; 0.302             ;
+; u_scan|C_q[1][29][2]       ; u_scan|s5_C[29][2]           ; 0.302             ;
+; u_scan|C_q[1][25][2]       ; u_scan|s5_C[25][2]           ; 0.302             ;
+; u_scan|B_q[1][26][7]       ; u_scan|op_B[26][7]           ; 0.302             ;
+; u_scan|B_q[1][29][3]       ; u_scan|op_B[29][3]           ; 0.301             ;
+; u_scan|B_q[1][56][3]       ; u_scan|op_B[56][3]           ; 0.301             ;
+; u_scan|B_q[1][28][4]       ; u_scan|op_B[28][4]           ; 0.301             ;
+; u_scan|B_q[1][63][5]       ; u_scan|op_B[63][5]           ; 0.301             ;
+; u_scan|B_q[1][23][8]       ; u_scan|op_B[23][8]           ; 0.301             ;
+; u_scan|B_q[1][23][5]       ; u_scan|op_B[23][5]           ; 0.301             ;
+; u_scan|B_q[1][53][12]      ; u_scan|op_B[53][12]          ; 0.301             ;
+; u_scan|C_q[1][53][1]       ; u_scan|s5_C[53][1]           ; 0.301             ;
+; u_scan|r1.D[3]             ; u_scan|r2.D[3]               ; 0.301             ;
+; u_scan|C_q[1][44][8]       ; u_scan|s5_C[44][8]           ; 0.301             ;
+; u_scan|B_q[1][53][1]       ; u_scan|op_B[53][1]           ; 0.301             ;
+; u_scan|C_q[1][0][6]        ; u_scan|s5_C[0][6]            ; 0.299             ;
+; sh[1944]                   ; u_scan|B_q[0][50][3]         ; 0.299             ;
+; u_scan|C_q[1][50][1]       ; u_scan|s5_C[50][1]           ; 0.299             ;
+; u_scan|B_q[1][39][4]       ; u_scan|op_B[39][4]           ; 0.299             ;
+; u_scan|C_q[1][58][4]       ; u_scan|s5_C[58][4]           ; 0.299             ;
+; u_scan|C_q[1][46][5]       ; u_scan|s5_C[46][5]           ; 0.299             ;
+; u_scan|B_q[1][29][1]       ; u_scan|op_B[29][1]           ; 0.299             ;
+; u_scan|C_q[1][55][8]       ; u_scan|s5_C[55][8]           ; 0.299             ;
+; u_scan|B_q[1][49][12]      ; u_scan|op_B[49][12]          ; 0.299             ;
+; u_scan|C_q[1][53][14]      ; u_scan|s5_C[53][14]          ; 0.299             ;
+; u_scan|B_q[1][20][7]       ; u_scan|op_B[20][7]           ; 0.299             ;
+; sh[1667]                   ; u_scan|B_q[1][32][14]        ; 0.299             ;
+; u_scan|C_q[1][57][10]      ; u_scan|s5_C[57][10]          ; 0.298             ;
+; u_scan|s6_dx[16]           ; u_scan|d_dx[0][16]           ; 0.298             ;
+; u_scan|B_q[1][40][6]       ; u_scan|op_B[40][6]           ; 0.298             ;
+; u_scan|B_q[1][28][0]       ; u_scan|op_B[28][0]           ; 0.298             ;
+; u_scan|B_q[1][61][12]      ; u_scan|op_B[61][12]          ; 0.298             ;
+; u_scan|C_q[1][58][14]      ; u_scan|s5_C[58][14]          ; 0.298             ;
+; u_scan|B_q[1][24][4]       ; u_scan|op_B[24][4]           ; 0.298             ;
+; u_scan|C_q[1][59][11]      ; u_scan|s5_C[59][11]          ; 0.298             ;
+; u_scan|B_q[1][56][6]       ; u_scan|op_B[56][6]           ; 0.298             ;
+; u_scan|B_q[1][45][7]       ; u_scan|op_B[45][7]           ; 0.298             ;
+; u_scan|B_q[1][43][2]       ; u_scan|op_B[43][2]           ; 0.298             ;
+; u_scan|C_q[1][56][9]       ; u_scan|s5_C[56][9]           ; 0.298             ;
+; u_scan|C_q[1][29][4]       ; u_scan|s5_C[29][4]           ; 0.298             ;
+; u_scan|C_q[1][29][1]       ; u_scan|s5_C[29][1]           ; 0.298             ;
+; u_scan|C_q[1][25][4]       ; u_scan|s5_C[25][4]           ; 0.298             ;
+; u_scan|B_q[1][35][14]      ; u_scan|op_B[35][14]          ; 0.298             ;
+; u_scan|B_q[1][63][4]       ; u_scan|op_B[63][4]           ; 0.298             ;
+; u_scan|C_q[1][56][6]       ; u_scan|s5_C[56][6]           ; 0.298             ;
+; u_scan|B_q[1][29][15]      ; u_scan|op_B[29][15]          ; 0.298             ;
+; u_scan|B_q[1][1][10]       ; u_scan|op_B[1][10]           ; 0.298             ;
+; u_scan|r1.D[7]             ; u_scan|r2.D[7]               ; 0.298             ;
+; u_scan|B_q[1][50][10]      ; u_scan|op_B[50][10]          ; 0.298             ;
+; u_scan|B_q[1][50][6]       ; u_scan|op_B[50][6]           ; 0.298             ;
+; u_scan|B_q[1][28][5]       ; u_scan|op_B[28][5]           ; 0.298             ;
+; u_scan|B_q[1][2][13]       ; u_scan|op_B[2][13]           ; 0.298             ;
++----------------------------+------------------------------+-------------------+
+Note: This table only shows the top 100 path(s) that have the largest delay added for hold.
+
+

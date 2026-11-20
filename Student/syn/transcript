@@ -1,0 +1,12 @@
+# vsim -c tb_lin_dot -do "run -all; quit" 
+# Start time: 14:28:49 on Nov 20,2026
+# Loading sv_std.std
+# Loading work.tb_lin_dot
+# Loading work.lin_dot
+# Loading work.adder_tree
+# run -all
+# PASS: 1000 dot products match the golden model
+# ** Note: $finish    : tb_lin_dot.sv(70)
+#    Time: 5410 ns  Iteration: 1  Instance: /tb_lin_dot
+# End time: 14:28:49 on Nov 20,2026, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0
