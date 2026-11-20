@@ -1,7 +1,8 @@
 // -----------------------------------------------------------------------------
 // Synthesis wrapper for fmax / resource measurement on Arria 10 (not for the board)
 //
-// ssm_discretize -> ssm_scan_unit with the student configuration:
+// ssm_discretize -> ssm_scan_unit with the student configuration, plus one
+// lin_dot (128 lanes, ALM multipliers):
 //   d_state N = 64, headdim P = 64, 8 heads x 12 layers = 96 state "heads"
 //   (the state memory holds all 12 layers: 96*64 rows x 64*24 bits = 9.4 Mb)
 //
@@ -18,7 +19,8 @@ module syn_top (
 );
   localparam int N = 64, P = 64, NHEADS = 96;
   localparam int HW = $clog2(NHEADS), PW = $clog2(P);
-  localparam int W_IN = 2*N*16 + HW + PW + 3*16 + 8 + 3*16;
+  localparam int KL = 128;                    // lin_dot lanes
+  localparam int W_IN = 2*N*16 + HW + PW + 3*16 + 8 + 3*16 + KL*4 + KL*8;
 
   // ---- reset / control / serial input --------------------------------------
   logic             rst_q, rst_qq;
@@ -39,8 +41,10 @@ module syn_top (
   logic signed [15:0]  in_xdt, in_x, in_D;
   logic [7:0]          d_tag;
   logic signed [15:0]  d_raw, d_bias, d_A;
+  logic [KL-1:0][3:0]  l_w;
+  logic [KL-1:0][7:0]  l_a;
 
-  assign {B_in, C_in, in_head, in_p, in_xdt, in_x, in_D, d_tag, d_raw, d_bias, d_A} = sh;
+  assign {B_in, C_in, in_head, in_p, in_xdt, in_x, in_D, d_tag, d_raw, d_bias, d_A, l_w, l_a} = sh;
 
   // ---- discretization (FastMamba NAU, improved options) ---------------------
   logic                d_valid;
@@ -67,7 +71,17 @@ module syn_top (
     .in_dA(d_dA), .in_xdt(in_xdt), .in_x(in_x), .in_D(in_D),
     .out_valid(s_valid), .out_head(s_head), .out_p(s_p), .out_y(s_y));
 
+  // ---- int8 x int4 group dot product (ALM multipliers) ----------------------
+  logic                l_valid;
+  logic [15:0]         l_tag;
+  logic signed [18:0]  l_sum;
+
+  lin_dot #(.K(KL), .USE_DSP(1'b0)) u_lin (
+    .clk(clk), .rst_n(rst_qq), .in_valid(ctl_q[0]), .in_tag(16'(d_tag)),
+    .in_w(l_w), .in_a(l_a),
+    .out_valid(l_valid), .out_tag(l_tag), .out_sum(l_sum));
+
   // ---- keep every output alive ----------------------------------------------
   always_ff @(posedge clk)
-    sout <= ^{d_valid, d_tag_o, d_delta, s_valid, s_head, s_p, s_y};
+    sout <= ^{d_valid, d_tag_o, d_delta, s_valid, s_head, s_p, s_y, l_valid, l_tag, l_sum};
 endmodule
