@@ -18,7 +18,7 @@
 // Input: one beat per group, in_first on the first group of a row, in_last on
 // the last (both on the same beat for a one-group row). in_k and in_tag are
 // taken from the last beat. Bubbles are allowed between beats.
-// Latency from the last beat to out_valid: 8 cycles.
+// Latency from the last beat to out_valid: 9 cycles.
 // -----------------------------------------------------------------------------
 module lin_scale #(
   parameter int W_ACC = 19,
@@ -69,7 +69,32 @@ module lin_scale #(
     tag1 <= in_tag;
   end
 
-  // ---- stage 2: acc * m (DSP, registered operands and product) ------------------
+  // ---- stage 2a: acc * m as two partial products --------------------------------
+  // acc = hi * 2^10 + lo (lo unsigned). Every multiplier input is <= 18 bits:
+  // a single 19 x 12 product was mapped by Quartus onto the 18-bit AY port of
+  // the 18x19 DSP mode and rejected (Error 15649).
+  localparam int W_LO = 10;
+  localparam int W_HI = W_ACC - W_LO;
+
+  logic                          v2a, f2a, l2a;
+  logic signed [W_LO+W_M:0]      plo2a;      // (W_LO+1) x W_M
+  logic signed [W_HI+W_M-1:0]    phi2a;      //  W_HI    x W_M
+  logic [4:0]                    sh2a;
+  logic signed [W_K-1:0]         k2a;
+  logic [W_TAG-1:0]              tag2a;
+
+  always_ff @(posedge clk) begin
+    v2a   <= rst_n & v1;
+    f2a   <= f1;
+    l2a   <= l1;
+    plo2a <= $signed({1'b0, acc1[W_LO-1:0]}) * m1;
+    phi2a <= $signed(acc1[W_ACC-1:W_LO]) * m1;
+    sh2a  <= sh1;
+    k2a   <= k1;
+    tag2a <= tag1;
+  end
+
+  // ---- stage 2b: recombine -----------------------------------------------------------
   logic                    v2, f2, l2;
   logic signed [W_PR-1:0]  pr2;
   logic [4:0]              sh2;
@@ -77,13 +102,13 @@ module lin_scale #(
   logic [W_TAG-1:0]        tag2;
 
   always_ff @(posedge clk) begin
-    v2   <= rst_n & v1;
-    f2   <= f1;
-    l2   <= l1;
-    pr2  <= acc1 * m1;
-    sh2  <= sh1;
-    k2   <= k1;
-    tag2 <= tag1;
+    v2   <= rst_n & v2a;
+    f2   <= f2a;
+    l2   <= l2a;
+    pr2  <= (W_PR'(phi2a) <<< W_LO) + W_PR'(plo2a);
+    sh2  <= sh2a;
+    k2   <= k2a;
+    tag2 <= tag2a;
   end
 
   // ---- stage 3: align to units of 2^-24 -------------------------------------------
