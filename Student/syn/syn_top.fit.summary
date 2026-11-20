@@ -1,4 +1,4 @@
-Fitter Status : Successful - Fri Nov 20 16:40:37 2026
+Fitter Status : Successful - Fri Nov 20 17:34:52 2026
 Quartus Prime Version : 25.3.0 Build 109 09/24/2025 SC Pro Edition
 Revision Name : syn_top
 Top-level Entity Name : syn_top
@@ -7,12 +7,12 @@ Device : 10AX115S2F45I1SG
 Timing Models : Final
 Power Models : Final
 Device Status : Final
-Logic utilization (in ALMs) : 8,250 / 427,200 ( 2 % )
-Total registers : 19937
-Total pins : 8 / 960 ( < 1 % )
+Logic utilization (in ALMs) : 8,642 / 427,200 ( 2 % )
+Total registers : 19668
+Total pins : 12 / 960 ( 1 % )
 Total virtual pins : 0
-Total block memory bits : 7,864,320 / 55,562,240 ( 14 % )
-Total RAM Blocks : 640 / 2,713 ( 24 % )
+Total block memory bits : 29,056,000 / 55,562,240 ( 52 % )
+Total RAM Blocks : 1,986 / 2,713 ( 73 % )
 Total DSP Blocks : 168 / 1,518 ( 11 % )
 Total HSSI RX channels : 0 / 72 ( 0 % )
 Total HSSI TX channels : 0 / 72 ( 0 % )

@@ -1,9 +1,9 @@
-Synthesis Status : Successful - Fri Nov 20 16:26:54 2026
+Synthesis Status : Successful - Fri Nov 20 17:13:57 2026
 Revision Name : syn_top
 Top-level Entity Name : syn_top
 Family : Arria 10
 Quartus Prime Version : 25.3.0 Build 109 09/24/2025 SC Pro Edition
 Device : 10AX115S2F45I1SG
-Logic utilization estimate (in ALMs) : 6,185 / 427,200 ( 1 % )
-Total registers : 27022
+Logic utilization estimate (in ALMs) : -,109 / 427,200 ( < 1 % )
+Total registers : 27891
 Estimated DSP Blocks Post-Merging : 168

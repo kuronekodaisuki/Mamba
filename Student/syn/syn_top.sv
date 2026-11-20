@@ -1,10 +1,11 @@
 // -----------------------------------------------------------------------------
 // Synthesis wrapper for fmax / resource measurement on Arria 10 (not for the board)
 //
-// ssm_discretize -> ssm_scan_unit with the student configuration, plus one
-// lin_dot (128 lanes, ALM multipliers) -> lin_scale:
+// ssm_discretize -> ssm_scan_unit with the student configuration:
 //   d_state N = 64, headdim P = 64, 8 heads x 12 layers = 96 state "heads"
-//   (the state memory holds all 12 layers: 96*64 rows x 64*24 bits = 9.4 Mb)
+//   (the state memory holds all 12 layers: 96*64 rows x 64*20 bits = 7.9 Mb)
+// plus one lin_unit with the weight / scale memories of all 12 layers:
+//   12 x (in_proj 1160 x 2 + out_proj 256 x 4) = 40128 words x (512 + 16) bits
 //
 // All wide inputs come from a 1-bit serial shift chain and all outputs are
 // XOR-reduced to one pin, so the design fits the package and nothing is
@@ -14,17 +15,20 @@ module syn_top (
   input  logic       clk,
   input  logic       rst_n,
   input  logic       sin,
-  input  logic [3:0] ctl,
+  input  logic [7:0] ctl,
   output logic       sout
 );
   localparam int N = 64, P = 64, NHEADS = 96;
   localparam int HW = $clog2(NHEADS), PW = $clog2(P);
   localparam int KL = 128;                    // lin_dot lanes
-  localparam int W_IN = 2*N*16 + HW + PW + 3*16 + 8 + 3*16 + KL*4 + KL*8 + 16 + 8;
+  localparam int WD = 12 * (1160 * 2 + 256 * 4);   // weight words, all layers
+  localparam int WA = $clog2(WD);
+  localparam int W_IN = 2*N*16 + HW + PW + 3*16 + 8 + 3*16
+                      + KL*8 + 2 + WA + 12 + 3 + 8 + KL*4 + 16 + WA;
 
   // ---- reset / control / serial input --------------------------------------
   logic             rst_q, rst_qq;
-  logic [3:0]       ctl_q;
+  logic [7:0]       ctl_q;
   logic [W_IN-1:0]  sh;
 
   always_ff @(posedge clk) begin
@@ -41,12 +45,18 @@ module syn_top (
   logic signed [15:0]  in_xdt, in_x, in_D;
   logic [7:0]          d_tag;
   logic signed [15:0]  d_raw, d_bias, d_A;
-  logic [KL-1:0][3:0]  l_w;
-  logic [KL-1:0][7:0]  l_a;
-  logic [15:0]         l_s;
-  logic signed [7:0]   l_k;
+  logic [KL-1:0][7:0]  a_d;              // lin_unit activation group
+  logic [1:0]          a_g;
+  logic [WA-1:0]       j_base;
+  logic [11:0]         j_rows;
+  logic [2:0]          j_groups;
+  logic signed [7:0]   j_k;
+  logic [KL-1:0][3:0]  m_wd;             // weight memory write port
+  logic [15:0]         m_sd;
+  logic [WA-1:0]       m_wa;
 
-  assign {B_in, C_in, in_head, in_p, in_xdt, in_x, in_D, d_tag, d_raw, d_bias, d_A, l_w, l_a, l_s, l_k} = sh;
+  assign {B_in, C_in, in_head, in_p, in_xdt, in_x, in_D, d_tag, d_raw, d_bias, d_A,
+          a_d, a_g, j_base, j_rows, j_groups, j_k, m_wd, m_sd, m_wa} = sh;
 
   // ---- discretization (FastMamba NAU, improved options) ---------------------
   logic                d_valid;
@@ -73,27 +83,31 @@ module syn_top (
     .in_dA(d_dA), .in_xdt(in_xdt), .in_x(in_x), .in_D(in_D),
     .out_valid(s_valid), .out_head(s_head), .out_p(s_p), .out_y(s_y));
 
-  // ---- int8 x int4 group dot product (ALM multipliers) ----------------------
-  logic                l_valid;
-  logic [15:0]         l_tag;
-  logic signed [18:0]  l_sum;
+  // ---- weight / scale memories of all layers ---------------------------------
+  logic [WA-1:0]       w_addr;
+  logic [KL-1:0][3:0]  w_data;
+  logic [15:0]         s_data;
 
-  lin_dot #(.K(KL), .USE_DSP(1'b0)) u_lin (
-    .clk(clk), .rst_n(rst_qq), .in_valid(ctl_q[0]), .in_tag(16'(d_tag)),
-    .in_w(l_w), .in_a(l_a),
-    .out_valid(l_valid), .out_tag(l_tag), .out_sum(l_sum));
+  sdp_ram #(.W(KL*4), .D(WD)) u_wmem (
+    .clk(clk), .we(ctl_q[6]), .waddr(m_wa), .wdata(m_wd), .raddr(w_addr), .rdata(w_data));
+  sdp_ram #(.W(16), .D(WD)) u_smem (
+    .clk(clk), .we(ctl_q[6]), .waddr(m_wa), .wdata(m_sd), .raddr(w_addr), .rdata(s_data));
 
-  // ---- row rescale to float32 ------------------------------------------------
-  logic                q_valid;
-  logic [15:0]         q_tag;
+  // ---- linear layer unit -------------------------------------------------------
+  logic                q_valid, q_done, q_busy;
+  logic [11:0]         q_row;
   logic [31:0]         q_y;
 
-  lin_scale u_lsc (
-    .clk(clk), .rst_n(rst_qq), .in_valid(l_valid), .in_first(ctl_q[1]), .in_last(ctl_q[2]),
-    .in_acc(l_sum), .in_scale(l_s), .in_k(l_k), .in_tag(l_tag),
-    .out_valid(q_valid), .out_tag(q_tag), .out_y(q_y));
+  lin_unit #(.K(KL), .G_MAX(4), .AW(WA), .RW(12), .RL(1)) u_lin (
+    .clk(clk), .rst_n(rst_qq),
+    .act_we(ctl_q[4]), .act_g(a_g), .act_d(a_d),
+    .start(ctl_q[5]), .base(j_base), .n_rows(j_rows), .n_groups(j_groups), .k(j_k),
+    .busy(q_busy),
+    .w_addr(w_addr), .w_data(w_data), .s_data(s_data),
+    .y_valid(q_valid), .y_row(q_row), .y_data(q_y), .done(q_done));
 
   // ---- keep every output alive ----------------------------------------------
   always_ff @(posedge clk)
-    sout <= ^{d_valid, d_tag_o, d_delta, s_valid, s_head, s_p, s_y, q_valid, q_tag, q_y};
+    sout <= ^{d_valid, d_tag_o, d_delta, s_valid, s_head, s_p, s_y,
+              q_valid, q_done, q_busy, q_row, q_y};
 endmodule
