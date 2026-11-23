@@ -1,3 +1,0 @@
-22 serialization::archive 20 0 1 0 0 3 0 0 0 10 lmanma_syn 0 0 6 folder 0 0 0 1 1 
- 13 mamba_student 6 folder 0 1 1 
- 7 syn_top 6 folder 0 1 1 
