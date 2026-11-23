@@ -74,6 +74,15 @@ module tb_mamba_core;
       $readmemh({pf, "k_in.hex"},  e_kin,  L * T);
       $readmemh({pf, "k_g.hex"},   e_kg,   L * T);
     end
+    // a file shorter than the array (e.g. images of the small model with +define+FULL)
+    // leaves the tail at x; stop instead of reporting thousands of mismatches
+    if ($isunknown(m_linw[LIN_WORDS - 1]) || $isunknown(m_lins[LIN_WORDS - 1]) ||
+        $isunknown(m_normw[NORM_WORDS - 1]) || $isunknown(m_convp[NL * CONV_DIM - 1]) ||
+        $isunknown(m_ssmp[NL * NH - 1]))
+      $fatal(1, "vec/mem does not match this configuration (D=%0d NL=%0d, %0d weight words expected)",
+             D, NL, LIN_WORDS);
+    if ($isunknown(e_hin[T * D - 1]) || $isunknown(e_hout[NL * T * D - 1]) || $isunknown(e_kg[NL * T - 1]))
+      $fatal(1, "vec/dump does not match this configuration (D=%0d NL=%0d T=%0d)", D, NL, T);
   end
 
   task automatic write_cfg(input logic [2:0] sel, input int addr, input logic [511:0] data);
