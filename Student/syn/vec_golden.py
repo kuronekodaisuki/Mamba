@@ -27,6 +27,7 @@ W_LI, F_LI = 24, 12
 W_LO, F_LO = 32, 16
 W_NW, F_NW = 18, 12
 EPS = 1e-5
+EPS_Q = int(round(EPS * 2.0 ** (2 * F_R)))   # eps in Q.32 (42950)
 
 
 def sat(v, w):
@@ -179,7 +180,7 @@ def norm_q8(v, w):
     else:
         _count("norm: python-int sum of squares", 1)
         ss = np.array([sum(int(e) * int(e) for e in row) for row in v], dtype=object)
-    eps_q = int(round(EPS * 2.0 ** (2 * F_R)))
+    eps_q = EPS_Q
     ms = [(int(x) >> lg) + eps_q for x in ss]                    # Q.32, exact
     j = np.array([(x.bit_length() - 1) >> 1 for x in ms], np.int64)
     m = np.array([((x << (14 - 2 * jj)) if 2 * jj <= 14 else
@@ -191,7 +192,7 @@ def norm_q8(v, w):
     P = u * R[:, None]
     t = np.array([_pow2_scale_exp(int(a)) for a in np.abs(P).max(-1)], np.int64)
     q = sat(shift_round(P, -t[:, None]), 8)
-    k = t - F_R - j
+    k = np.clip(t - F_R - j, -128, 127)          # int8 exponent (only an all-zero v hits the clip)
     return q, k
 
 
@@ -226,6 +227,116 @@ def embed_fx(q, s16):
 
 
 # ----------------------------------------------------------------------------
+def _hexw(v, w):
+    return f"{int(v) & ((1 << w) - 1):0{(w + 3) // 4}x}"
+
+
+def norm_vectors(out, n=256, seed=0, base=100, K=128):
+    """Vectors for rtl/norm_q8.sv.
+       vec/nq_cfg.hex  T, n_log2, base
+       vec/nq_w.hex    n norm weights, Q.12 in 18 bits
+       vec/nq_v.hex    T*n inputs, Q.16 in 32 bits
+       vec/nq_q.hex    T*(n/K) words of K int8 (lane k in bits [8k+7:8k])
+       vec/nq_k.hex    T exponents (int8)"""
+    import os
+    rng = np.random.default_rng(seed)
+    scales = [1e-2, 0.3, 1.0, 5.0, 16.0, 50.0, 1e-3, 2.0, 0.05, 8.0]
+    V = []
+    for sc in scales:
+        v = rng.standard_normal(n) * sc
+        v[rng.integers(0, n)] *= 30                    # an outlier channel
+        V.append(v)
+    V.append(np.zeros(n))                              # all-zero vector (k clips)
+    V.append(np.full(n, 0.5))
+    V = to_fixed(np.array(V), W_R, F_R)
+    w = rng.uniform(0.2, 3.0, n)
+    w[:4] = -w[:4]
+    wq = to_fixed(w, W_NW, F_NW)
+    q, k = norm_q8(V, wq)
+    T = V.shape[0]
+    os.makedirs(out, exist_ok=True)
+    with open(f"{out}/nq_cfg.hex", "w") as f:
+        f.write(f"{T:x}\n{int(np.log2(n)):x}\n{base:x}\n")
+    with open(f"{out}/nq_w.hex", "w") as f:
+        f.writelines(_hexw(x, W_NW) + "\n" for x in wq)
+    with open(f"{out}/nq_v.hex", "w") as f:
+        f.writelines(_hexw(x, W_R) + "\n" for x in V.reshape(-1))
+    with open(f"{out}/nq_q.hex", "w") as f:
+        for t in range(T):
+            for g in range(n // K):
+                word = 0
+                for i, e in enumerate(q[t, g * K:(g + 1) * K]):
+                    word |= (int(e) & 0xFF) << (8 * i)
+                f.write(f"{word:0{K * 2}x}\n")
+    with open(f"{out}/nq_k.hex", "w") as f:
+        f.writelines(_hexw(x, 8) + "\n" for x in k)
+    print(f"norm_q8 vectors: {T} vectors of n={n}, k = {list(k)} -> {out}/nq_*.hex")
+
+
+def elem_vectors(out, n=4000, seed=1):
+    """Vectors for rtl/silu_unit.sv and rtl/gate_unit.sv.
+       vec/sg_in.hex  {y[47:24] (Q.16), z[23:0] (Q.12)} per element
+       vec/sg_s.hex   SiLU(z), 24 bits
+       vec/sg_g.hex   y * SiLU(z), Q.16 in 32 bits"""
+    import os
+    rng = np.random.default_rng(seed)
+    z = np.concatenate([rng.integers(-(1 << 23), 1 << 23, n // 4),
+                        rng.integers(-(20 << F_LI), 20 << F_LI, n - n // 4 - 8),
+                        [-(1 << 23), (1 << 23) - 1, 16 << F_LI, -(16 << F_LI),
+                         (16 << F_LI) - 1, 0, 1, -1]])
+    y = rng.integers(-(1 << 23), 1 << 23, z.size)
+    y[: n // 2] //= 256
+    os.makedirs(out, exist_ok=True)
+    with open(f"{out}/sg_in.hex", "w") as f:
+        f.writelines(f"{((int(a) & 0xFFFFFF) << 24) | (int(b) & 0xFFFFFF):012x}\n" for a, b in zip(y, z))
+    with open(f"{out}/sg_s.hex", "w") as f:
+        f.writelines(_hexw(v, 24) + "\n" for v in silu_fx(z))
+    with open(f"{out}/sg_g.hex", "w") as f:
+        f.writelines(_hexw(v, 32) + "\n" for v in gate_fx(y, z))
+    print(f"silu / gate vectors: {z.size} elements -> {out}/sg_*.hex")
+
+
+def conv_vectors(out, nch=16, nlayer=2, T=7, seed=2):
+    """Vectors for rtl/conv_unit.sv (stream order: token, layer, channel).
+       vec/cv_cfg.hex  T, nch, nlayer
+       vec/cv_p.hex    nlayer*nch parameter words {b24, s16, w3, w2, w1, w0}
+       vec/cv_x.hex    inputs Q.12 (24 bits)
+       vec/cv_y.hex    SiLU(conv) Q.12 (24 bits)"""
+    import os
+    rng = np.random.default_rng(seed)
+    X, Y, Pw = [], [], []
+    for L in range(nlayer):
+        x = rng.integers(-(1 << 23), 1 << 23, (T, nch))
+        x[2:] //= 1000
+        wq = rng.integers(-128, 128, (nch, 4))
+        s16 = np.exp(rng.uniform(np.log(1e-4), np.log(30), nch)).astype(np.float16)
+        s16[0] = -s16[0]
+        s16[1] = np.float16(3e-7)                      # fp16 subnormal
+        bq = rng.integers(-(1 << 20), 1 << 20, nch)
+        X.append(x)
+        Y.append(silu_fx(conv_fx(x, wq, s16, bq)))
+        for c in range(nch):
+            w = 0
+            for k in range(4):
+                w |= (int(wq[c, k]) & 0xFF) << (8 * k)
+            w |= int(s16[c].view(np.uint16)) << 32
+            w |= (int(bq[c]) & 0xFFFFFF) << 48
+            Pw.append(f"{w:018x}")
+    os.makedirs(out, exist_ok=True)
+    with open(f"{out}/cv_cfg.hex", "w") as f:
+        f.write(f"{T:x}\n{nch:x}\n{nlayer:x}\n")
+    with open(f"{out}/cv_p.hex", "w") as f:
+        f.writelines(w + "\n" for w in Pw)
+    with open(f"{out}/cv_x.hex", "w") as f, open(f"{out}/cv_y.hex", "w") as g:
+        for t in range(T):
+            for L in range(nlayer):
+                for c in range(nch):
+                    f.write(_hexw(X[L][t, c], 24) + "\n")
+                    g.write(_hexw(Y[L][t, c], 24) + "\n")
+    print(f"conv vectors: {T} tokens x {nlayer} layers x {nch} channels -> {out}/cv_*.hex")
+
+
+# ----------------------------------------------------------------------------
 def _report():
     x = np.linspace(-12, 12, 20001)
     xf = to_fixed(x, W_LI, F_LI)
@@ -250,4 +361,19 @@ def _report():
 
 
 if __name__ == "__main__":
-    _report()
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--norm", action="store_true", help="write vectors for rtl/norm_q8.sv")
+    ap.add_argument("--elem", action="store_true", help="vectors for rtl/silu_unit.sv, gate_unit.sv")
+    ap.add_argument("--conv", action="store_true", help="vectors for rtl/conv_unit.sv")
+    ap.add_argument("--n", type=int, default=256)
+    ap.add_argument("--out", default="vec")
+    a = ap.parse_args()
+    if a.norm:
+        norm_vectors(a.out, a.n)
+    elif a.elem:
+        elem_vectors(a.out)
+    elif a.conv:
+        conv_vectors(a.out)
+    else:
+        _report()

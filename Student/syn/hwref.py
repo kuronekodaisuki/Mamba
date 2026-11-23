@@ -160,6 +160,7 @@ class HwRef:
             assert not self.cfg["hadamard"], "fixed vector path assumes no Hadamard rotation"
         self.state_fmt = state_fmt or (self.sg.W_H, self.sg.F_H)
         self.stats = {}
+        self.dump = None                             # set to {} to record forward_fixed tensors
 
     def _count(self, key, n):
         self.stats[key] = self.stats.get(key, 0) + n
@@ -280,7 +281,10 @@ class HwRef:
         N, P = c["d_state"], c["headdim"]
         T = len(ids)
         h = vg.embed_fx(self.p["emb_w"][ids].astype(np.int64), self.p["emb_s"][ids])
+        d = self.dump
         for i in range(c["n_layer"]):
+            if d is not None:
+                d[(i, "h_in")] = h.copy()
             q, k = vg.norm_q8(h, self._wfix(f"L{i}.norm", vg.W_NW, vg.F_NW))
             zx = self.lin_fx(q, k, f"L{i}.in", vg.F_LI, vg.W_LI)
             self._maxabs("max |in_proj out|", zx, vg.F_LI)
@@ -305,6 +309,11 @@ class HwRef:
             q2, k2 = vg.norm_q8(g, self._wfix(f"L{i}.norm_w", vg.W_NW, vg.F_NW))
             out = self.lin_fx(q2, k2, f"L{i}.out", vg.F_LO, vg.W_LO)
             h = sat(h + out, vg.W_R)
+            if d is not None:
+                d.update({(i, "q_in"): q, (i, "k_in"): k, (i, "zx"): zx, (i, "xbc"): xbc,
+                          (i, "raw_q"): raw_q, (i, "x_q"): x_q, (i, "B_q"): B_q, (i, "C_q"): C_q,
+                          (i, "y"): y, (i, "g"): g, (i, "q_g"): q2, (i, "k_g"): k2,
+                          (i, "out"): out, (i, "h_out"): h.copy()})
             self._maxabs("max |residual|", h, vg.F_R)
         q, k = vg.norm_q8(h, self._wfix("norm_f", vg.W_NW, vg.F_NW))
         emb = self.p["emb_w"].astype(np.float32)
@@ -414,8 +423,17 @@ def selftest(golden_dir=None, tmpdir="."):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--make-test-model", default=None, metavar="DIR",
+                    help="write a small random model (weights.npz + validation tokens) to DIR")
     ap.add_argument("--golden-dir", default=None)
     ap.add_argument("--tmpdir", default=".")
     a = ap.parse_args()
     if a.selftest:
         selftest(a.golden_dir, a.tmpdir)
+    if a.make_test_model:
+        os.makedirs(a.make_test_model, exist_ok=True)
+        rng = np.random.default_rng(0)
+        _random_npz(os.path.join(a.make_test_model, "weights.npz"), rng, a.golden_dir)
+        np.save(os.path.join(a.make_test_model, "val_tokens_16x512.npy"),
+                rng.integers(0, 1000, (16, 513)).astype(np.int32))
+        print(f"test model (d_model 128, 2 layers, d_state 32, headdim 32) -> {a.make_test_model}")

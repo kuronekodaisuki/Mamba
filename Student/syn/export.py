@@ -181,6 +181,121 @@ def export(ckpt_path, out_dir, golden_dir):
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# RTL memory images (one $readmemh file per on-chip memory, all layers)
+# ---------------------------------------------------------------------------
+def write_mem_images(out_dir, golden_dir):
+    """Layout (word addresses):
+      linw / lins : layer L in_proj  rows x groups at L*LSTRIDE,
+                    out_proj rows x groups at L*LSTRIDE + in_words
+      normw       : layer L pre-norm (d) at L*(d+di), gated norm (di) after it,
+                    final norm at n_layer*(d+di)            (Q.12, 18 bits)
+      convp       : (L, ch) at L*conv_dim + ch : {b24, s16, w3, w2, w1, w0}
+      ssmp        : (L, h)  at L*nheads + h    : {D16, A16, dt_bias16}"""
+    _import_golden(golden_dir)
+    import vec_golden as vg
+    z = np.load(os.path.join(out_dir, "weights.npz"))
+    p = {k: z[k] for k in z.files}
+    cfg = json.loads(str(p["cfg_json"]))
+    d, nl = cfg["d_model"], cfg["n_layer"]
+    di = cfg["expand"] * d
+    nh = di // cfg["headdim"]
+    mdir = os.path.join(out_dir, "mem")
+    os.makedirs(mdir, exist_ok=True)
+
+    in_words = p["L0.in_s"].size
+    out_words = p["L0.out_s"].size
+    stride = in_words + out_words
+    with open(os.path.join(mdir, "linw.hex"), "w") as fw, open(os.path.join(mdir, "lins.hex"), "w") as fs:
+        for L in range(nl):
+            for name in ("in", "out"):
+                q = p[f"L{L}.{name}_w"].astype(np.int64)
+                sc = p[f"L{L}.{name}_s"]
+                O, din = q.shape
+                G = sc.shape[1]
+                grp = din // G
+                for r in range(O):
+                    for g in range(G):
+                        nib = q[r, g * grp:(g + 1) * grp] & 0xF
+                        fw.write("".join(f"{int(v):x}" for v in nib[::-1]) + "\n")
+                        fs.write(f"{int(sc[r, g].view(np.uint16)):04x}\n")
+
+    clips = {}
+    def fx(name, w, f):
+        q, n = to_fixed(p[name], w, f)
+        if n:
+            clips[name] = n
+        return q
+
+    with open(os.path.join(mdir, "normw.hex"), "w") as f:
+        for L in range(nl):
+            for name in (f"L{L}.norm", f"L{L}.norm_w"):
+                f.writelines(f"{int(v) & 0x3FFFF:05x}\n" for v in fx(name, vg.W_NW, vg.F_NW))
+        f.writelines(f"{int(v) & 0x3FFFF:05x}\n" for v in fx("norm_f", vg.W_NW, vg.F_NW))
+
+    conv_dim = p["L0.conv_w"].shape[0]
+    with open(os.path.join(mdir, "convp.hex"), "w") as f:
+        for L in range(nl):
+            wq = p[f"L{L}.conv_w"].astype(np.int64)
+            sc = p[f"L{L}.conv_s"]
+            bq = fx(f"L{L}.conv_b", vg.W_LI, vg.F_LI)
+            for c in range(conv_dim):
+                w = 0
+                for k in range(4):
+                    w |= (int(wq[c, k]) & 0xFF) << (8 * k)
+                w |= int(sc[c].view(np.uint16)) << 32
+                w |= (int(bq[c]) & 0xFFFFFF) << 48
+                f.write(f"{w:018x}\n")
+
+    with open(os.path.join(mdir, "ssmp.hex"), "w") as f:
+        for L in range(nl):
+            for h in range(nh):
+                w = ((int(p[f"L{L}.D"][h]) & 0xFFFF) << 32) | ((int(p[f"L{L}.A"][h]) & 0xFFFF) << 16) \
+                    | (int(p[f"L{L}.dt_bias"][h]) & 0xFFFF)
+                f.write(f"{w:012x}\n")
+
+    layout = {"lin_stride": stride, "lin_in_words": in_words, "lin_out_words": out_words,
+              "lin_total_words": nl * stride, "norm_stride": d + di, "norm_final": nl * (d + di),
+              "conv_dim": conv_dim, "nheads": nh, "clipped": clips}
+    with open(os.path.join(mdir, "layout.json"), "w") as f:
+        json.dump(layout, f, indent=2)
+    print(f"memory images -> {mdir}: {layout}")
+
+
+def dump_layers(out_dir, golden_dir, n_tok):
+    """Run the fixed-point reference on the first n_tok validation tokens and
+    write every layer's tensors (token-major) to out_dir/dump/."""
+    _import_golden(golden_dir)
+    import vec_golden as vg
+    npz = os.path.join(out_dir, "weights.npz")
+    ref = HwRef(npz, "fixed", golden_dir, vec="fixed")
+    ref.dump = {}
+    rows = load_val_rows(out_dir, 16, 512)
+    ids = np.array(rows[0][:n_tok])
+    ref.forward(ids)
+    ddir = os.path.join(out_dir, "dump")
+    os.makedirs(ddir, exist_ok=True)
+    widths = {"h_in": 32, "h_out": 32, "zx": 24, "xbc": 24, "raw_q": 16, "x_q": 16,
+              "B_q": 16, "C_q": 16, "y": 24, "g": 32, "out": 32, "k_in": 8, "k_g": 8}
+    np.savetxt(os.path.join(ddir, "ids.txt"), ids, fmt="%d")
+    for (L, name), v in ref.dump.items():
+        v = np.asarray(v, np.int64)
+        path = os.path.join(ddir, f"L{L:02d}_{name}.hex")
+        if name in ("q_in", "q_g"):                         # 128-lane int8 words
+            with open(path, "w") as f:
+                for row in v.reshape(v.shape[0], -1, 128):
+                    for grp in row:
+                        word = 0
+                        for i, e in enumerate(grp):
+                            word |= (int(e) & 0xFF) << (8 * i)
+                        f.write(f"{word:0256x}\n")
+        else:
+            w = widths[name]
+            with open(path, "w") as f:
+                f.writelines(f"{int(e) & ((1 << w) - 1):0{(w + 3) // 4}x}\n" for e in v.reshape(-1))
+    print(f"layer dump of {n_tok} tokens -> {ddir}")
+
+
 def load_val_rows(out_dir, n_seq, seq):
     """Validation token blocks, cached in out_dir so later runs need no network."""
     cache = os.path.join(out_dir, f"val_tokens_{n_seq}x{seq}.npy")
@@ -245,7 +360,8 @@ def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts, vec
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ckpt", required=True)
+    ap.add_argument("--ckpt", default=None,
+                    help="QAT checkpoint; omit to reuse OUT/weights.npz (--mem / --dump only)")
     ap.add_argument("--out", default="../export")
     ap.add_argument("--golden-dir", default=None, help="folder with ssm_golden.py / nau_golden.py")
     ap.add_argument("--verify", type=int, default=0, help="number of validation sequences")
@@ -255,8 +371,17 @@ if __name__ == "__main__":
                     help="vector path(s) between layers: float (fp32) and/or fixed (vec_golden)")
     ap.add_argument("--state-fmt", default="20:16",
                     help="SSM state formats W_H:F_H to compare, e.g. 24:16,20:16,20:14")
+    ap.add_argument("--mem", action="store_true", help="write RTL memory images to OUT/mem")
+    ap.add_argument("--dump", type=int, default=0, help="dump N tokens of every layer to OUT/dump")
     a = ap.parse_args()
     fmts = [tuple(int(v) for v in f.split(":")) for f in a.state_fmt.split(",")]
-    cfg, ck = export(a.ckpt, a.out, a.golden_dir)
+    if a.ckpt:
+        cfg, ck = export(a.ckpt, a.out, a.golden_dir)
+    elif a.verify:
+        ap.error("--verify needs --ckpt")
+    if a.mem:
+        write_mem_images(a.out, a.golden_dir)
+    if a.dump:
+        dump_layers(a.out, a.golden_dir, a.dump)
     if a.verify:
         verify(cfg, ck, a.out, a.verify, a.seq, a.golden_dir, a.float_ref, fmts, a.vec.split(","))

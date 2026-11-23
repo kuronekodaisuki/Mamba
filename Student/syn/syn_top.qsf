@@ -36,3 +36,10 @@ set_global_assignment -name SYSTEMVERILOG_FILE nau.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ssm_discretize.sv
 set_global_assignment -name SYSTEMVERILOG_FILE syn_top.sv
 set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+set_global_assignment -name SYSTEMVERILOG_FILE sdp_ram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE sdp_ram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE lin_unit.sv
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 1
+set_global_assignment -name SYSTEMVERILOG_FILE lin_unit.sv
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 1
+set_global_assignment -name AUTO_SHIFT_REGISTER_RECOGNITION OFF
