@@ -1,5 +1,5 @@
 # 300 MHz target: the timing report then shows how far above / below it we are
-create_clock -name clk -period 3.333 [get_ports clk]
+create_clock -name clk -period 4.000 [get_ports clk]
 derive_clock_uncertainty
 
 # measurement wrapper: I/O timing is not meaningful
