@@ -20,10 +20,11 @@
 //   s2  M20K output register
 //   s3  operands: h_prev (or 0), B[n] of this token, dA, dt*x, D, x
 //   s4  products dA*h, xdt*B, D*x
-//   s5  requantize + add + saturate -> new state, written back;  C[n] selected
-//   s6  products h*C
-//   s7.. adder tree (log2 N), then 2 output stages
-// Latency in_valid -> out_valid : 8 + log2(N) cycles
+//   s5  requantize + add
+//   s6  saturate -> new state, written back;  C[n] selected
+//   s7  products h*C
+//   s8.. adder tree (log2 N), then 2 output stages
+// Latency in_valid -> out_valid : 9 + log2(N) cycles
 // State lives in on-chip RAM (NHEADS*P words x N*W_H bits).
 // -----------------------------------------------------------------------------
 module ssm_scan_unit #(
@@ -65,7 +66,7 @@ module ssm_scan_unit #(
   localparam int DEPTH = NHEADS * P;
   localparam int AW    = $clog2(DEPTH);
   localparam int LVL   = $clog2(N);
-  localparam int WB_LAT = 5;                 // read address -> write-back
+  localparam int WB_LAT = 6;                 // read address -> write-back
 
   // product widths and requantization shifts
   localparam int W_PA = W_A + W_H,  SH_A = F_A;                // dA*h   -> F_H
@@ -128,7 +129,7 @@ module ssm_scan_unit #(
     logic signed [W_D-1:0] D;
   } row_t;
 
-  row_t r0, r1, r2, r3, r4, r5;
+  row_t r0, r1, r2, r3, r4, r5, r6;
   logic [AW-1:0] raddr;
 
   assign raddr = AW'(in_head) * AW'(P) + AW'(in_p);
@@ -136,12 +137,13 @@ module ssm_scan_unit #(
                    dA: in_dA, xdt: in_xdt, x: in_x, D: in_D};
 
   always_ff @(posedge clk) begin
-    r1 <= r0;  r2 <= r1;  r3 <= r2;  r4 <= r3;  r5 <= r4;
+    r1 <= r0;  r2 <= r1;  r3 <= r2;  r4 <= r3;  r5 <= r4;  r6 <= r5;
     r1.v <= rst_n & r0.v;
     r2.v <= rst_n & r1.v;
     r3.v <= rst_n & r2.v;
     r4.v <= rst_n & r3.v;
     r5.v <= rst_n & r4.v;
+    r6.v <= rst_n & r5.v;
   end
 
   // ---------------------------------------------------------------------------
@@ -185,13 +187,13 @@ module ssm_scan_unit #(
   // ---------------------------------------------------------------------------
   (* dont_merge *) logic [N-1:0] sel_s2;    // bank of the row now in s2
   (* dont_merge *) logic [N-1:0] clr_s2;    // first token of that bank
-  (* dont_merge *) logic [N-1:0] sel_s4;    // bank of the row now in s4
+  (* dont_merge *) logic [N-1:0] sel_s5;    // bank of the row now in s5
 
   always_ff @(posedge clk)
     for (int n = 0; n < N; n++) begin
       sel_s2[n] <= r1.bank;
       clr_s2[n] <= first_q[r1.bank];
-      sel_s4[n] <= r3.bank;
+      sel_s5[n] <= r4.bank;
     end
 
   // ---------------------------------------------------------------------------
@@ -225,58 +227,72 @@ module ssm_scan_unit #(
   end
 
   // ---------------------------------------------------------------------------
-  // s5: requantize, add, saturate -> new state (written back); select C
+  // s5: requantize and add (unsaturated sum registered)
   // ---------------------------------------------------------------------------
-  logic [N-1:0][W_H-1:0] hnew_c;
+  logic [N-1:0][WS1-1:0] sum_c, s5_sum;
 
   for (genvar n = 0; n < N; n++) begin : g_upd
     logic signed [WRA-1:0] ta;
     logic signed [WRB-1:0] tb;
-    logic signed [WS1-1:0] ts;
     rshift_round #(.WI(W_PA), .SHIFT(SH_A)) u_ra (.din(s4_pa[n]), .dout(ta));
     rshift_round #(.WI(W_PB), .SHIFT(SH_B)) u_rb (.din(s4_pb[n]), .dout(tb));
-    assign ts = WS1'(ta) + WS1'(tb);
-    saturate #(.WI(WS1), .WO(W_H)) u_sat (.din(ts), .dout(hnew_c[n]));
+    assign sum_c[n] = WS1'(ta) + WS1'(tb);
   end
 
-  logic [N-1:0][W_H-1:0]  s5_h;
-  logic [N-1:0][W_B-1:0]  s5_C;
   logic signed [W_PD-1:0] s5_dx;
 
   always_ff @(posedge clk) begin
-    s5_h  <= hnew_c;
-    s5_dx <= s4_dx;
-    for (int n = 0; n < N; n++)
-      s5_C[n] <= C_q[sel_s4[n]][n];
+    s5_sum <= sum_c;
+    s5_dx  <= s4_dx;
   end
 
-  assign wr_en   = r5.v;
-  assign waddr   = r5.a;
-  assign wr_data = s5_h;
+  // ---------------------------------------------------------------------------
+  // s6: saturate -> new state (written back); select C
+  // ---------------------------------------------------------------------------
+  logic [N-1:0][W_H-1:0] hnew_c;
 
-  // ---------------------------------------------------------------------------
-  // s6: h*C
-  // ---------------------------------------------------------------------------
-  logic [N-1:0][W_PC-1:0] s6_pc;
+  for (genvar n = 0; n < N; n++) begin : g_sat
+    saturate #(.WI(WS1), .WO(W_H)) u_sat (.din(s5_sum[n]), .dout(hnew_c[n]));
+  end
+
+  logic [N-1:0][W_H-1:0]  s6_hs;
+  logic [N-1:0][W_B-1:0]  s6_C;
   logic signed [W_PD-1:0] s6_dx;
-  logic                   s6_v;
-  logic [HW-1:0]          s6_h;
-  logic [PW-1:0]          s6_p;
 
   always_ff @(posedge clk) begin
-    s6_v  <= rst_n & r5.v;
-    s6_h  <= r5.h;
-    s6_p  <= r5.p;
+    s6_hs <= hnew_c;
     s6_dx <= s5_dx;
     for (int n = 0; n < N; n++)
-      s6_pc[n] <= $signed(s5_h[n]) * $signed(s5_C[n]);
+      s6_C[n] <= C_q[sel_s5[n]][n];
+  end
+
+  assign wr_en   = r6.v;
+  assign waddr   = r6.a;
+  assign wr_data = s6_hs;
+
+  // ---------------------------------------------------------------------------
+  // s7: h*C
+  // ---------------------------------------------------------------------------
+  logic [N-1:0][W_PC-1:0] s7_pc;
+  logic signed [W_PD-1:0] s7_dx;
+  logic                   s7_v;
+  logic [HW-1:0]          s7_h;
+  logic [PW-1:0]          s7_p;
+
+  always_ff @(posedge clk) begin
+    s7_v  <= rst_n & r6.v;
+    s7_h  <= r6.h;
+    s7_p  <= r6.p;
+    s7_dx <= s6_dx;
+    for (int n = 0; n < N; n++)
+      s7_pc[n] <= $signed(s6_hs[n]) * $signed(s6_C[n]);
   end
 
   // ---------------------------------------------------------------------------
   // Reduction over N lanes, control delayed alongside
   // ---------------------------------------------------------------------------
   logic signed [W_SUM-1:0] tree_sum;
-  adder_tree #(.N(N), .WI(W_PC)) u_tree (.clk(clk), .din(s6_pc), .dout(tree_sum));
+  adder_tree #(.N(N), .WI(W_PC)) u_tree (.clk(clk), .din(s7_pc), .dout(tree_sum));
 
   logic [LVL-1:0]           d_v;
   logic [LVL-1:0][HW-1:0]   d_h;
@@ -284,10 +300,10 @@ module ssm_scan_unit #(
   logic [LVL-1:0][W_PD-1:0] d_dx;
 
   always_ff @(posedge clk) begin
-    d_v[0]  <= rst_n & s6_v;
-    d_h[0]  <= s6_h;
-    d_p[0]  <= s6_p;
-    d_dx[0] <= s6_dx;
+    d_v[0]  <= rst_n & s7_v;
+    d_h[0]  <= s7_h;
+    d_p[0]  <= s7_p;
+    d_dx[0] <= s7_dx;
     for (int k = 1; k < LVL; k++) begin
       d_v[k]  <= rst_n & d_v[k-1];
       d_h[k]  <= d_h[k-1];
