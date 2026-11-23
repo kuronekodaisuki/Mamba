@@ -18,13 +18,14 @@
 // address and output registers):
 //   s1  M20K address register        (read in flight)
 //   s2  M20K output register
+//   s2b relay register (M20K and DSP columns are far apart)
 //   s3  operands: h_prev (or 0), B[n] of this token, dA, dt*x, D, x
 //   s4  products dA*h, xdt*B, D*x
 //   s5  requantize + add
 //   s6  saturate -> new state, written back;  C[n] selected
 //   s7  products h*C
 //   s8.. adder tree (log2 N), then 2 output stages
-// Latency in_valid -> out_valid : 9 + log2(N) cycles
+// Latency in_valid -> out_valid : 10 + log2(N) cycles
 // State lives in on-chip RAM (NHEADS*P words x N*W_H bits).
 // -----------------------------------------------------------------------------
 module ssm_scan_unit #(
@@ -66,7 +67,7 @@ module ssm_scan_unit #(
   localparam int DEPTH = NHEADS * P;
   localparam int AW    = $clog2(DEPTH);
   localparam int LVL   = $clog2(N);
-  localparam int WB_LAT = 6;                 // read address -> write-back
+  localparam int WB_LAT = 7;                 // read address -> write-back
 
   // product widths and requantization shifts
   localparam int W_PA = W_A + W_H,  SH_A = F_A;                // dA*h   -> F_H
@@ -88,8 +89,9 @@ module ssm_scan_unit #(
       $fatal(1, "ssm_scan_unit: every requantization shift must be >= 1");
     if ((1 << LVL) != N)
       $fatal(1, "ssm_scan_unit: N must be a power of two");
-    if (DEPTH <= WB_LAT + 1)
-      $fatal(1, "ssm_scan_unit: NHEADS*P must exceed the write-back latency");
+    // the next read of a row comes DEPTH + 1 cycles later (tok_load in between)
+    if (DEPTH < WB_LAT)
+      $fatal(1, "ssm_scan_unit: NHEADS*P must not be below the write-back latency");
   end
   // synthesis translate_on
 
@@ -129,7 +131,7 @@ module ssm_scan_unit #(
     logic signed [W_D-1:0] D;
   } row_t;
 
-  row_t r0, r1, r2, r3, r4, r5, r6;
+  row_t r0, r0d, r1, r2, r3, r4, r5, r6;
   logic [AW-1:0] raddr;
 
   assign raddr = AW'(in_head) * AW'(P) + AW'(in_p);
@@ -137,8 +139,9 @@ module ssm_scan_unit #(
                    dA: in_dA, xdt: in_xdt, x: in_x, D: in_D};
 
   always_ff @(posedge clk) begin
-    r1 <= r0;  r2 <= r1;  r3 <= r2;  r4 <= r3;  r5 <= r4;  r6 <= r5;
-    r1.v <= rst_n & r0.v;
+    r0d <= r0; r1 <= r0d; r2 <= r1;  r3 <= r2;  r4 <= r3;  r5 <= r4;  r6 <= r5;
+    r0d.v <= rst_n & r0.v;
+    r1.v <= rst_n & r0d.v;
     r2.v <= rst_n & r1.v;
     r3.v <= rst_n & r2.v;
     r4.v <= rst_n & r3.v;
@@ -148,7 +151,7 @@ module ssm_scan_unit #(
 
   // ---------------------------------------------------------------------------
   // State memory: one word = N lanes of one (head, p) row.
-  // A row is read at s0 and written back at s5; the same row is not read
+  // A row is read at s0 and written back WB_LAT cycles later; the same row is not read
   // again until the next token (DEPTH cycles later), so there is no
   // read-after-write hazard.
   //
@@ -164,6 +167,7 @@ module ssm_scan_unit #(
 
   wire  [N*W_H-1:0]      rd_s1;                // read data (address registered)
   logic [N*W_H-1:0]      rd_s2;                // output register
+  logic [N*W_H-1:0]      rd_s2b;               // relay register
   logic                  wr_en;
   logic [AW-1:0]         waddr;
   logic [N-1:0][W_H-1:0] wr_data;
@@ -177,8 +181,10 @@ module ssm_scan_unit #(
       .raddr(raddr), .rdata(rd_s1[j*MW +: MW]));
   end
 
-  always_ff @(posedge clk)
-    rd_s2 <= rd_s1;
+  always_ff @(posedge clk) begin
+    rd_s2  <= rd_s1;
+    rd_s2b <= rd_s2;
+  end
 
   // ---------------------------------------------------------------------------
   // Per-lane copies of the bank select and of the "first token" clear, one
@@ -203,7 +209,7 @@ module ssm_scan_unit #(
   logic [N-1:0][W_B-1:0] op_B;
   logic [N-1:0][W_H-1:0] rd_lanes;
 
-  assign rd_lanes = rd_s2;
+  assign rd_lanes = rd_s2b;
 
   always_ff @(posedge clk)
     for (int n = 0; n < N; n++) begin

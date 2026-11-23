@@ -27,9 +27,11 @@ module sdp_ram #(
   output logic [W-1:0]  rdata
 );
   // ---- optional input register ------------------------------------------------
-  logic          we_i;
-  logic [AW-1:0] waddr_i, raddr_i;
-  logic [W-1:0]  wdata_i;
+  // maxfan: let Quartus duplicate these registers so that no copy drives more
+  // than 32 M20K blocks (a 40k x 512 memory spans ~1300 blocks)
+  (* maxfan = 32 *) logic          we_i;
+  (* maxfan = 32 *) logic [AW-1:0] waddr_i, raddr_i;
+  (* maxfan = 32 *) logic [W-1:0]  wdata_i;
 
   if (IN_REG) begin : g_in
     always_ff @(posedge clk) begin
