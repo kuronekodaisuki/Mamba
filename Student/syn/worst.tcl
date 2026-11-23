@@ -1,4 +1,4 @@
-project_open syn_top
+project_open lmamba_core
 create_timing_netlist
 read_sdc
 update_timing_netlist
