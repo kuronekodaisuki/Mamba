@@ -1,7 +1,7 @@
 // -----------------------------------------------------------------------------
 // Row rescale for the int8 x int4 linear layers
 //
-//   y = 2^k * sum_g acc_g * s_g        (rounded once to float32)
+//   y = 2^k * sum_g acc_g * s_g        (rounded once to fixed point Q.F_OUT)
 //
 // acc_g : exact group dot product from lin_dot (signed W_ACC bits)
 // s_g   : fp16 group scale. s = m * 2^(sh - 24) with
@@ -11,9 +11,10 @@
 //         row sum is exact (W_S bits).
 // k     : activation scale exponent (activations were quantized with 2^k)
 //
-// The exact sum is converted to float32 with round-to-nearest-even; a result
-// below the normal range flushes to +0, above it becomes +-inf.
-// Bit-exact with model/lin_golden.py:lin_rescale.
+// The exact sum (units of 2^-24) is shifted by k - 24 + F_OUT: a right shift
+// rounds half-up, a left shift is exact; the result saturates to W_OUT bits.
+// Bit-exact with model/vec_golden.py:lin_fixed.
+// (in_proj: F_OUT = 12, W_OUT = 24;  out_proj: F_OUT = 16, W_OUT = 32)
 //
 // Input: one beat per group, in_first on the first group of a row, in_last on
 // the last (both on the same beat for a one-group row). in_k and in_tag are
@@ -23,7 +24,9 @@
 module lin_scale #(
   parameter int W_ACC = 19,
   parameter int W_K   = 8,
-  parameter int W_TAG = 16
+  parameter int W_TAG = 16,
+  parameter int F_OUT = 12,
+  parameter int W_OUT = 24
 )(
   input  logic                    clk,
   input  logic                    rst_n,
@@ -36,14 +39,16 @@ module lin_scale #(
   input  logic [W_TAG-1:0]        in_tag,
   output logic                    out_valid,
   output logic [W_TAG-1:0]        out_tag,
-  output logic [31:0]             out_y
+  output logic signed [W_OUT-1:0] out_y
 );
   localparam int W_M  = 12;                 // signed mantissa (11 bits + sign)
   localparam int W_PR = W_ACC + W_M;        // acc * m
   localparam int W_T  = W_PR + 29;          // << sh (sh <= 29)
   localparam int W_S  = W_T + 3;            // sum of up to 8 groups
-  localparam int W_LZ = $clog2(W_S + 1);
-  localparam int W_E  = 12;                 // signed exponent arithmetic
+  localparam int W_SH = 10;                 // signed shift amount
+  localparam int MAXR = W_S;                // right shifts beyond this give 0 / -1
+  localparam int MAXL = W_OUT + 1;          // left shifts beyond this always saturate
+  localparam int W_X  = W_S + MAXL + 1;     // width after a left shift
 
   // ---- stage 1: decode the fp16 scale -----------------------------------------
   logic                    v1, f1, l1;
@@ -143,78 +148,53 @@ module lin_scale #(
     tag4 <= tag3;
   end
 
-  // ---- stage 5: sign / magnitude --------------------------------------------------
-  logic                  v5, neg5;
-  logic [W_S-1:0]        mag5;
-  logic signed [W_K-1:0] k5;
-  logic [W_TAG-1:0]      tag5;
+  // ---- stage 5: shift amount -------------------------------------------------------
+  logic                    v5, left5;
+  logic signed [W_S-1:0]   fin5;
+  logic [6:0]              rs5, ls5;
+  logic [W_TAG-1:0]        tag5;
+  logic signed [W_SH-1:0]  sh;
+
+  assign sh = W_SH'(k4) - W_SH'(24) + W_SH'(F_OUT);
 
   always_ff @(posedge clk) begin
-    v5   <= rst_n & v4;
-    neg5 <= fin4[W_S-1];
-    mag5 <= fin4[W_S-1] ? W_S'(-fin4) : W_S'(fin4);
-    k5   <= k4;
-    tag5 <= tag4;
+    v5    <= rst_n & v4;
+    fin5  <= fin4;
+    left5 <= (sh >= 0);
+    rs5   <= (sh >= 0) ? 7'd0 : ((-sh > MAXR) ? 7'(MAXR) : 7'(-sh));
+    ls5   <= (sh <  0) ? 7'd0 : (( sh > MAXL) ? 7'(MAXL) : 7'(sh));
+    tag5  <= tag4;
   end
 
-  // ---- stage 6: leading-zero count ---------------------------------------------------
-  function automatic logic [W_LZ-1:0] lzc(input logic [W_S-1:0] v);
-    lzc = W_LZ'(W_S);
-    for (int i = 0; i < W_S; i++)
-      if (v[i]) lzc = W_LZ'(W_S - 1 - i);     // the highest set bit wins
-  endfunction
-
-  logic                  v6, neg6, zero6;
-  logic [W_S-1:0]        mag6;
-  logic [W_LZ-1:0]       lz6;
-  logic signed [W_K-1:0] k6;
-  logic [W_TAG-1:0]      tag6;
+  // ---- stage 6: add the rounding constant 2^(r-1) ----------------------------------
+  logic                    v6, left6;
+  logic signed [W_S:0]     a6;
+  logic [6:0]              rs6, ls6;
+  logic [W_TAG-1:0]        tag6;
 
   always_ff @(posedge clk) begin
     v6    <= rst_n & v5;
-    neg6  <= neg5;
-    zero6 <= (mag5 == '0);
-    mag6  <= mag5;
-    lz6   <= lzc(mag5);
-    k6    <= k5;
+    left6 <= left5;
+    rs6   <= rs5;
+    ls6   <= ls5;
+    a6    <= (W_S+1)'(fin5) + ((rs5 == 0) ? '0 : ((W_S+1)'(1) <<< (rs5 - 7'd1)));
     tag6  <= tag5;
   end
 
-  // ---- stage 7: normalize, biased exponent -------------------------------------------
-  logic                  v7, neg7, zero7;
-  logic [W_S-1:0]        norm7;
-  logic signed [W_E-1:0] e7;
-  logic [W_TAG-1:0]      tag7;
+  // ---- stage 7: shift ----------------------------------------------------------------
+  logic                    v7;
+  logic signed [W_X-1:0]   x7;
+  logic [W_TAG-1:0]        tag7;
 
   always_ff @(posedge clk) begin
-    v7    <= rst_n & v6;
-    neg7  <= neg6;
-    zero7 <= zero6;
-    norm7 <= mag6 << lz6;
-    e7    <= W_E'(W_S - 1 - 24 + 127) - W_E'(lz6) + W_E'(k6);
-    tag7  <= tag6;
+    v7   <= rst_n & v6;
+    x7   <= left6 ? (W_X'(a6) <<< ls6) : W_X'(a6 >>> rs6);
+    tag7 <= tag6;
   end
 
-  // ---- stage 8: round to nearest even, pack ----------------------------------------
-  logic [23:0]           mant;
-  logic                  guard, sticky, inc;
-  logic [24:0]           mr;
-  logic signed [W_E-1:0] e_r;
-  logic [31:0]           y_c;
-
-  assign mant   = norm7[W_S-1 -: 24];
-  assign guard  = norm7[W_S-25];
-  assign sticky = |norm7[W_S-26:0];
-  assign inc    = guard & (sticky | mant[0]);
-  assign mr     = {1'b0, mant} + 25'(inc);
-  assign e_r    = mr[24] ? e7 + W_E'(1) : e7;
-
-  always_comb begin
-    if (zero7 || e7 <= 0)        y_c = 32'h0000_0000;
-    else if (e_r >= W_E'(255))   y_c = {neg7, 8'hFF, 23'd0};
-    else if (mr[24])             y_c = {neg7, e_r[7:0], mr[23:1]};
-    else                         y_c = {neg7, e_r[7:0], mr[22:0]};
-  end
+  // ---- stage 8: saturate ---------------------------------------------------------------
+  logic signed [W_OUT-1:0] y_c;
+  saturate #(.WI(W_X), .WO(W_OUT)) u_sat (.din(x7), .dout(y_c));
 
   always_ff @(posedge clk) begin
     out_valid <= rst_n & v7;

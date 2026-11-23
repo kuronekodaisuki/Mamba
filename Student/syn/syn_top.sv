@@ -96,7 +96,7 @@ module syn_top (
   // ---- linear layer unit -------------------------------------------------------
   logic                q_valid, q_done, q_busy;
   logic [11:0]         q_row;
-  logic [31:0]         q_y;
+  logic signed [23:0]  q_y;
 
   lin_unit #(.K(KL), .G_MAX(4), .AW(WA), .RW(12), .RL(3)) u_lin (
     .clk(clk), .rst_n(rst_qq),

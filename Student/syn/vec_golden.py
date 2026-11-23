@@ -48,6 +48,21 @@ def shift_round(v, s):
     return np.where(s >= 0, left, right)
 
 
+def shift_round_sat(v, s, w):
+    """sat_w(round(v * 2^s)) without int64 overflow (|v| < 2^61; s any int).
+    Right shifts round half-up; shifts beyond 62 are exact for such v."""
+    v = np.asarray(v, np.int64)
+    s = np.broadcast_to(np.asarray(s, np.int64), v.shape)
+    r = np.clip(-s, 1, 62)
+    y_r = (v + (np.int64(1) << (r - 1))) >> r
+    l = np.clip(s, 0, 62)
+    hi = np.int64(1) << (w - 1)
+    pos_lim = np.where(l >= w, 0, (hi - 1) >> np.minimum(l, w - 1))
+    neg_lim = np.where(l >= w, 0, -(hi >> np.minimum(l, w - 1)))
+    y_l = np.where(v > pos_lim, hi - 1, np.where(v < neg_lim, -hi, v << np.minimum(l, w)))
+    return np.where(s < 0, sat(y_r, w), y_l)
+
+
 def fp16_fields(s16):
     b = np.asarray(s16, np.float16).view(np.uint16).astype(np.int64)
     sign, E, F = (b >> 15) & 1, (b >> 10) & 31, b & 1023
@@ -117,7 +132,7 @@ def lin_fixed(acc, s16, k, F, W):
     m, sh = fp16_fields(s16)
     total = (np.asarray(acc, np.int64) * m << sh).sum(-1)       # units of 2^-24
     k = np.asarray(k, np.int64)[..., None]
-    return sat(shift_round(total, k - 24 + F), W)
+    return shift_round_sat(total, k - 24 + F, W)
 
 
 # ----------------------------------------------------------------------------

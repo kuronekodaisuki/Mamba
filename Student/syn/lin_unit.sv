@@ -5,7 +5,7 @@
 //      act_we beat (act_g = group index)
 //   2) pulse start with the word address of row 0 / group 0 in the weight
 //      memory, the number of rows and groups, and the activation exponent k
-//   3) rows come out in order on y_valid / y_row / y_data (float32);
+//   3) rows come out in order on y_valid / y_row / y_data (fixed point Q.F_OUT);
 //      done pulses with the last row. A new start is accepted when !busy.
 //
 // Weight memory layout (as written by student/export.py hex/L??_*_w.hex):
@@ -24,7 +24,9 @@ module lin_unit #(
   parameter int RW    = 12,       // row index
   parameter int RL    = 1,        // weight / scale memory read latency
   parameter int W_K   = 8,
-  parameter bit USE_DSP = 1'b0
+  parameter bit USE_DSP = 1'b0,
+  parameter int F_OUT = 12,       // output Q.F_OUT in W_OUT bits
+  parameter int W_OUT = 24
 )(
   input  logic                         clk,
   input  logic                         rst_n,
@@ -46,7 +48,7 @@ module lin_unit #(
   // results
   output logic                         y_valid,
   output logic [RW-1:0]                y_row,
-  output logic [31:0]                  y_data,
+  output logic signed [W_OUT-1:0]      y_data,
   output logic                         done
 );
   localparam int GW      = $clog2(G_MAX);
@@ -148,7 +150,7 @@ module lin_unit #(
   // ---- rescale to float32 -------------------------------------------------------------
   logic [RW-1:0] y_row_c;
 
-  lin_scale #(.W_ACC(W_ACC), .W_K(W_K), .W_TAG(RW)) u_scale (
+  lin_scale #(.W_ACC(W_ACC), .W_K(W_K), .W_TAG(RW), .F_OUT(F_OUT), .W_OUT(W_OUT)) u_scale (
     .clk(clk), .rst_n(rst_n),
     .in_valid(d_valid), .in_first(d_tag[RW+1]), .in_last(d_tag[RW]),
     .in_acc(d_sum), .in_scale(s_d[DOT_LAT-1]), .in_k(k_q), .in_tag(d_tag[RW-1:0]),

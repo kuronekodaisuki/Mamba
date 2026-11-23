@@ -4,10 +4,11 @@
 //   python3 model/lin_golden.py --unit --npz ../export/weights.npz \
 //           --layer 0 --proj in --out vec                              (trained weights)
 // The weights are placed at a non-zero base address and the job is run twice
-// back to back; every float32 row result is checked bit for bit.
+// back to back; every Q.F_OUT row result is checked bit for bit.
 module tb_lin_unit;
   localparam int K = 128, G_MAX = 4, AW = 16, RW = 12;
   localparam int MAXW = 8192, BASE = 37;
+  localparam int F_OUT = 12, W_OUT = 24;    // must match lin_golden.py --F / --W
   localparam int RL = 3;            // memory read latency (sdp_ram with IN_REG + OUT_REG)
 
   logic clk = 1'b0;
@@ -28,10 +29,10 @@ module tb_lin_unit;
   logic [15:0]           s_data;
   logic                  y_valid;
   logic [RW-1:0]         y_row;
-  logic [31:0]           y_data;
+  logic signed [W_OUT-1:0] y_data;
   logic                  done;
 
-  lin_unit #(.K(K), .G_MAX(G_MAX), .AW(AW), .RW(RW), .RL(RL)) dut (.*);
+  lin_unit #(.K(K), .G_MAX(G_MAX), .AW(AW), .RW(RW), .RL(RL), .F_OUT(F_OUT), .W_OUT(W_OUT)) dut (.*);
 
   // ---- weight / scale memory model (read latency RL, like sdp_ram) ----------------
   logic [K*4-1:0] wmem [MAXW];
@@ -54,7 +55,7 @@ module tb_lin_unit;
   logic [15:0]    sfile [MAXW];
   logic [K*8-1:0] afile [G_MAX];
   logic [15:0]    cfg   [3];
-  logic [31:0]    yexp  [4096];
+  logic [W_OUT-1:0] yexp [4096];
   int rows, groups;
 
   initial begin

@@ -1,9 +1,10 @@
 `timescale 1ns/1ps
 // Self-checking testbench for lin_scale.sv
 //   python3 model/lin_golden.py --scale --out vec
-// Beats are streamed with random bubbles; float32 results are checked bit for bit.
+// Beats are streamed with random bubbles; Q.F_OUT results are checked bit for bit.
 module tb_lin_scale;
   localparam int MAXB = 20000, MAXR = 10000;
+  localparam int F_OUT = 12, W_OUT = 24;     // must match lin_golden.py --F / --W
 
   logic clk = 1'b0;
   always #2 clk = ~clk;
@@ -16,18 +17,18 @@ module tb_lin_scale;
   logic [15:0]        in_tag = '0;
   logic               out_valid;
   logic [15:0]        out_tag;
-  logic [31:0]        out_y;
+  logic signed [W_OUT-1:0] out_y;
 
-  lin_scale dut (.*);
+  lin_scale #(.F_OUT(F_OUT), .W_OUT(W_OUT)) dut (.*);
 
   logic [44:0] beat [MAXB];
-  logic [31:0] yexp [MAXR];
+  logic [W_OUT-1:0] yexp [MAXR];
   int nb = 0, nr = 0;
 
   initial begin
     int fd;
     logic [44:0] w;
-    logic [31:0] y;
+    logic [W_OUT-1:0] y;
     fd = $fopen("vec/lsc_in.hex", "r");
     while ($fscanf(fd, "%h", w) == 1) beat[nb++] = w;
     $fclose(fd);

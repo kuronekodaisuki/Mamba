@@ -2,7 +2,8 @@
 """Golden model and test vectors for the linear-layer datapath.
 
 rtl/lin_dot.sv   : int8 activations x int4 weights, K lanes (exact integer)
-rtl/lin_scale.sv : rescale one output row from its group sums (lin_rescale below)
+rtl/lin_scale.sv : one output row from its group sums, fixed point Q.F (vec_golden.lin_fixed);
+                   lin_rescale below is the float32 variant used by hwref for the logits
 
   python3 model/lin_golden.py --out vec            # 1000 dot vectors, K = 128
   python3 model/lin_golden.py --scale --out vec    # rescale vectors
@@ -19,6 +20,8 @@ import argparse
 import os
 
 import numpy as np
+
+import vec_golden                      # lin_fixed: the fixed-point row output
 
 
 # ----------------------------------------------------------------------------
@@ -70,10 +73,10 @@ def pack(v, bits):
     return f"{x:0{(len(v) * bits + 3) // 4}x}"
 
 
-def scale_vectors(out, n_rows, seed):
+def scale_vectors(out, n_rows, seed, F=12, W=24):
     """vec/lsc_in.hex : one beat per line, 45 bits
                         {first[44], last[43], k[42:35], scale[34:19], acc[18:0]}
-       vec/lsc_y.hex  : one float32 per row"""
+       vec/lsc_y.hex  : one Q.F value per row (W bits)"""
     rng = np.random.default_rng(seed)
     beats, ys = [], []
     for r in range(n_rows):
@@ -87,12 +90,12 @@ def scale_vectors(out, n_rows, seed):
         if r == 6:
             s[0] = -s[0]
         k = int(rng.integers(-20, 4))
-        y = lin_rescale(acc[None, :], s[None, :], np.array([k]))[0]
+        y = vec_golden.lin_fixed(acc[None, :], s[None, :], np.array(k), F, W)[0]
         for g in range(G):
             word = ((int(g == 0) << 44) | (int(g == G - 1) << 43) | ((k & 0xFF) << 35)
                     | (int(s[g].view(np.uint16)) << 19) | (int(acc[g]) & 0x7FFFF))
             beats.append(f"{word:012x}")
-        ys.append(f"{int(np.float32(y).view(np.uint32)):08x}")
+        ys.append(f"{int(y) & ((1 << W) - 1):0{(W + 3) // 4}x}")
     with open(f"{out}/lsc_in.hex", "w") as f:
         f.writelines(b + "\n" for b in beats)
     with open(f"{out}/lsc_y.hex", "w") as f:
@@ -101,13 +104,14 @@ def scale_vectors(out, n_rows, seed):
     return len(beats)
 
 
-def unit_vectors(out, seed, rows=300, groups=2, npz=None, layer=0, proj="in", K=128):
+def unit_vectors(out, seed, rows=300, groups=2, npz=None, layer=0, proj="in", K=128,
+                 f_out=12, w_out=24):
     """Vectors for rtl/lin_unit.sv.
        vec/lu_w.hex   rows*G words, K int4 each (export hex format)
        vec/lu_s.hex   rows*G fp16 scales
        vec/lu_a.hex   G activation groups, K int8 each
        vec/lu_cfg.hex rows, G, k (two's complement, 8 bits)
-       vec/lu_y.hex   rows float32 results"""
+       vec/lu_y.hex   rows results, Q.F in W bits"""
     rng = np.random.default_rng(seed)
     if npz:
         z = np.load(npz)
@@ -124,7 +128,7 @@ def unit_vectors(out, seed, rows=300, groups=2, npz=None, layer=0, proj="in", K=
     A = rng.integers(-128, 128, din)
     k = int(rng.integers(-12, -2))
     acc = (W * A).reshape(rows, groups, K).sum(-1)               # exact group sums
-    Y = lin_rescale(acc[None], S, np.array([k]))[0]
+    Y = vec_golden.lin_fixed(acc, S, np.array(k), f_out, w_out)
 
     with open(f"{out}/lu_w.hex", "w") as f:
         f.writelines(pack(W[r, g * K:(g + 1) * K], 4) + "\n"
@@ -136,7 +140,7 @@ def unit_vectors(out, seed, rows=300, groups=2, npz=None, layer=0, proj="in", K=
     with open(f"{out}/lu_cfg.hex", "w") as f:
         f.write(f"{rows:x}\n{groups:x}\n{k & 0xFF:02x}\n")
     with open(f"{out}/lu_y.hex", "w") as f:
-        f.writelines(f"{int(v):08x}\n" for v in Y.astype(np.float32).view(np.uint32))
+        f.writelines(f"{int(v) & ((1 << w_out) - 1):0{(w_out + 3) // 4}x}\n" for v in Y)
     print(f"lin_unit vectors ({src}): {rows} rows x {groups} groups, k={k} -> {out}/lu_*.hex")
 
 
@@ -151,14 +155,17 @@ def main():
     ap.add_argument("--npz", default=None, help="exported weights.npz (else random weights)")
     ap.add_argument("--layer", type=int, default=0)
     ap.add_argument("--proj", choices=["in", "out"], default="in")
+    ap.add_argument("--F", type=int, default=12, help="output fraction bits (in_proj 12, out_proj 16)")
+    ap.add_argument("--W", type=int, default=24, help="output width (in_proj 24, out_proj 32)")
     a = ap.parse_args()
     if a.unit:
         os.makedirs(a.out, exist_ok=True)
-        unit_vectors(a.out, a.seed, npz=a.npz, layer=a.layer, proj=a.proj, K=a.K)
+        unit_vectors(a.out, a.seed, npz=a.npz, layer=a.layer, proj=a.proj, K=a.K,
+                     f_out=a.F, w_out=a.W)
         return
     if a.scale:
         os.makedirs(a.out, exist_ok=True)
-        scale_vectors(a.out, a.n, a.seed)
+        scale_vectors(a.out, a.n, a.seed, a.F, a.W)
         return
     K = a.K
     w_o = 12 + int(np.log2(K))
