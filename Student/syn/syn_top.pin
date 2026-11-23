@@ -314,7 +314,7 @@ RESERVED_INPUT_WITH_WEAK_PULLUP : AE11      :        :                   : 1.8V 
 RESERVED_INPUT_WITH_WEAK_PULLUP : AE12      :        :                   : 1.8V    : 3D        :                
 VCCIO3D                      : AE13      : power  :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AE14      :        :                   : 1.8V    : 3D        :                
-RESERVED_INPUT_WITH_WEAK_PULLUP : AE15      :        :                   : 1.8V    : 3D        :                
+ctl[4]                       : AE15      : input  : 1.8-V             : 1.8V    : 3D        : N              
 VCC                          : AE16      : power  :                   : 0.9V    :           :                
 VCC                          : AE17      : power  :                   : 0.9V    :           :                
 GND                          : AE18      : gnd    :                   :         :           :                
@@ -445,7 +445,7 @@ RESERVED_INPUT_WITH_WEAK_PULLUP : AH10      :        :                   : 1.8V 
 RESERVED_INPUT_WITH_WEAK_PULLUP : AH11      :        :                   : 1.8V    : 3D        :                
 GND                          : AH12      : gnd    :                   :         :           :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AH13      :        :                   : 1.8V    : 3D        :                
-rst_n                        : AH14      : input  : 1.8-V             : 1.8V    : 3D        : N              
+ctl[7]                       : AH14      : input  : 1.8-V             : 1.8V    : 3D        : N              
 VCCP                         : AH15      : power  :                   : 0.9V    :           :                
 VCCPT                        : AH16      : power  :                   : 1.8V    :           :                
 GND                          : AH17      : gnd    :                   :         :           :                
@@ -489,7 +489,7 @@ GND                          : AJ10      : gnd    :                   :         
 RESERVED_INPUT_WITH_WEAK_PULLUP : AJ11      :        :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AJ12      :        :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AJ13      :        :                   : 1.8V    : 3D        :                
-ctl[0]                       : AJ14      : input  : 1.8-V             : 1.8V    : 3D        : N              
+ctl[1]                       : AJ14      : input  : 1.8-V             : 1.8V    : 3D        : N              
 GND                          : AJ15      : gnd    :                   :         :           :                
 VCC                          : AJ16      : power  :                   : 0.9V    :           :                
 VCC                          : AJ17      : power  :                   : 0.9V    :           :                
@@ -533,7 +533,7 @@ GND                          : AK10      : gnd    :                   :         
 RESERVED_INPUT_WITH_WEAK_PULLUP : AK11      :        :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AK12      :        :                   : 1.8V    : 3D        :                
 GND                          : AK13      : gnd    :                   :         :           :                
-RESERVED_INPUT_WITH_WEAK_PULLUP : AK14      :        :                   : 1.8V    : 3D        :                
+ctl[0]                       : AK14      : input  : 1.8-V             : 1.8V    : 3D        : N              
 RESERVED_INPUT_WITH_WEAK_PULLUP : AK15      :        :                   : 1.8V    : 3D        :                
 VCC                          : AK16      : power  :                   : 0.9V    :           :                
 VCC                          : AK17      : power  :                   : 0.9V    :           :                
@@ -576,14 +576,14 @@ GND                          : AL9       : gnd    :                   :         
 RESERVED_INPUT_WITH_WEAK_PULLUP : AL10      :        :                   : 1.8V    : 3D        :                
 GND                          : AL11      : gnd    :                   :         :           :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AL12      :        :                   : 1.8V    : 3D        :                
-sin                          : AL13      : input  : 1.8-V             : 1.8V    : 3D        : N              
+ctl[6]                       : AL13      : input  : 1.8-V             : 1.8V    : 3D        : N              
 RESERVED_INPUT_WITH_WEAK_PULLUP : AL14      :        :                   : 1.8V    : 3D        :                
-ctl[2]                       : AL15      : input  : 1.8-V             : 1.8V    : 3D        : N              
+ctl[3]                       : AL15      : input  : 1.8-V             : 1.8V    : 3D        : N              
 GND                          : AL16      : gnd    :                   :         :           :                
-RESERVED_INPUT_WITH_WEAK_PULLUP : AL17      :        :                   : 1.8V    : 3D        :                
+sout                         : AL17      : output : 1.8-V             : 1.8V    : 3D        : N              
 RESERVED_INPUT_WITH_WEAK_PULLUP : AL18      :        :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AL19      :        :                   : 1.8V    : 3D        :                
-sout                         : AL20      : output : 1.8-V             : 1.8V    : 3D        : N              
+RESERVED_INPUT_WITH_WEAK_PULLUP : AL20      :        :                   : 1.8V    : 3D        :                
 GND                          : AL21      : gnd    :                   :         :           :                
 AS_DATA1                     : AL22      :        :                   :         : CSS       :                
 VCCBAT                       : AL23      : power  :                   : 1.8V    :           :                
@@ -623,8 +623,8 @@ RESERVED_INPUT_WITH_WEAK_PULLUP : AM12      :        :                   : 1.8V 
 RESERVED_INPUT_WITH_WEAK_PULLUP : AM13      :        :                   : 1.8V    : 3D        :                
 GND                          : AM14      : gnd    :                   :         :           :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AM15      :        :                   : 1.8V    : 3D        :                
-ctl[1]                       : AM16      : input  : 1.8-V             : 1.8V    : 3D        : N              
-RESERVED_INPUT_WITH_WEAK_PULLUP : AM17      :        :                   : 1.8V    : 3D        :                
+rst_n                        : AM16      : input  : 1.8-V             : 1.8V    : 3D        : N              
+sin                          : AM17      : input  : 1.8-V             : 1.8V    : 3D        : N              
 RESERVED_INPUT_WITH_WEAK_PULLUP : AM18      :        :                   : 1.8V    : 3D        :                
 VCCIO3B                      : AM19      : power  :                   : 1.8V    : 3B        :                
 AS_DATA2                     : AM20      :        :                   :         : CSS       :                
@@ -664,7 +664,7 @@ GND                          : AN9       : gnd    :                   :         
 RESERVED_INPUT_WITH_WEAK_PULLUP : AN10      :        :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AN11      :        :                   : 1.8V    : 3D        :                
 VCCIO3C                      : AN12      : power  :                   : 1.8V    : 3C        :                
-RESERVED_INPUT_WITH_WEAK_PULLUP : AN13      :        :                   : 1.8V    : 3D        :                
+ctl[2]                       : AN13      : input  : 1.8-V             : 1.8V    : 3D        : N              
 RESERVED_INPUT_WITH_WEAK_PULLUP : AN14      :        :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AN15      :        :                   : 1.8V    : 3D        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AN16      :        :                   : 1.8V    : 3D        :                
@@ -749,7 +749,7 @@ GND                          : AR6       : gnd    :                   :         
 GND                          : AR7       : gnd    :                   :         :           :                
 GND                          : AR8       : gnd    :                   :         :           :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AR9       :        :                   : 1.8V    : 3C        :                
-ctl[3]                       : AR10      : input  : 1.8-V             : 1.8V    : 3D        : N              
+ctl[5]                       : AR10      : input  : 1.8-V             : 1.8V    : 3D        : N              
 RESERVED_INPUT_WITH_WEAK_PULLUP : AR11      :        :                   : 1.8V    : 3C        :                
 RESERVED_INPUT_WITH_WEAK_PULLUP : AR12      :        :                   : 1.8V    : 3C        :                
 VCCIO3C                      : AR13      : power  :                   : 1.8V    : 3C        :                
