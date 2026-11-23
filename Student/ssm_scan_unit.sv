@@ -31,7 +31,7 @@ module ssm_scan_unit #(
   parameter int P      = 64,    // headdim
   parameter int NHEADS = 24,
   // fixed-point formats: W = total bits, F = fractional bits
-  parameter int W_H = 24, parameter int F_H = 16,   // state h
+  parameter int W_H = 20, parameter int F_H = 16,   // state h (20 bits: 2 lanes per 40-bit M20K word)
   parameter int W_A = 18, parameter int F_A = 16,   // dA in [0,1]
   parameter int W_X = 16, parameter int F_X  = 10,  // x and dt*x (width)
   parameter int F_XD = 14,                          // dt*x fraction (dt can be ~1e-3)

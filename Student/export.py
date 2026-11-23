@@ -198,14 +198,15 @@ def load_val_rows(out_dir, n_seq, seq):
     return rows
 
 
-def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts):
+def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts, vecs):
     rows = load_val_rows(out_dir, n_seq, seq)
 
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     model = StudentLM(cfg).to(dev).eval()
     model.load_state_dict(ck["model"])
     npz = os.path.join(out_dir, "weights.npz")
-    refs = {f"fixed W{w}F{f}": HwRef(npz, "fixed", golden_dir, (w, f)) for w, f in state_fmts}
+    refs = {f"W{w}F{f} vec-{v}": HwRef(npz, "fixed", golden_dir, (w, f), vec=v)
+            for w, f in state_fmts for v in vecs}
     if with_float:
         refs["float"] = HwRef(npz, "float", golden_dir)
 
@@ -235,7 +236,7 @@ def verify(cfg, ck, out_dir, n_seq, seq, golden_dir, with_float, state_fmts):
     print(f"\nverification on {n_seq} x {seq} validation tokens")
     print(f"  torch QAT model (fp32)        : perplexity {math.exp(nll['torch'] / n_tok):.2f}")
     for k in refs:
-        print(f"  hwref {k:12s}: perplexity {math.exp(nll[k] / n_tok):.2f}"
+        print(f"  hwref {k:20s}: perplexity {math.exp(nll[k] / n_tok):.2f}"
               f"   top-1 agreement with torch {agree[k] / n_tok:.1%}")
     for k, ref in refs.items():
         if k != "float":
@@ -250,10 +251,12 @@ if __name__ == "__main__":
     ap.add_argument("--verify", type=int, default=0, help="number of validation sequences")
     ap.add_argument("--seq", type=int, default=512)
     ap.add_argument("--float-ref", action="store_true", help="also run hwref with float SSM/NAU")
-    ap.add_argument("--state-fmt", default="24:16",
+    ap.add_argument("--vec", default="float,fixed",
+                    help="vector path(s) between layers: float (fp32) and/or fixed (vec_golden)")
+    ap.add_argument("--state-fmt", default="20:16",
                     help="SSM state formats W_H:F_H to compare, e.g. 24:16,20:16,20:14")
     a = ap.parse_args()
     fmts = [tuple(int(v) for v in f.split(":")) for f in a.state_fmt.split(",")]
     cfg, ck = export(a.ckpt, a.out, a.golden_dir)
     if a.verify:
-        verify(cfg, ck, a.out, a.verify, a.seq, a.golden_dir, a.float_ref, fmts)
+        verify(cfg, ck, a.out, a.verify, a.seq, a.golden_dir, a.float_ref, fmts, a.vec.split(","))

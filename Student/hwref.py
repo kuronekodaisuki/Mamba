@@ -138,11 +138,12 @@ class NauVec:
 # reference model
 # ----------------------------------------------------------------------------
 class HwRef:
-    def __init__(self, npz_path, mode="fixed", golden_dir=None, state_fmt=None):
+    def __init__(self, npz_path, mode="fixed", golden_dir=None, state_fmt=None, vec="float"):
         z = np.load(npz_path)
         self.p = {k: z[k] for k in z.files}
         self.cfg = json.loads(str(self.p.pop("cfg_json")))
         self.mode = mode
+        self.vec = vec                               # "float" or "fixed" (model/vec_golden.py)
         self.ng, self.sg = _import_golden(golden_dir)
         nau_mode = self.cfg.get("nau", "improved")
         self.ng.EXP_NEAR0 = self.ng.SP_ORDER2 = int(nau_mode != "published")
@@ -150,6 +151,13 @@ class HwRef:
         c = self.cfg
         self.di = c["expand"] * c["d_model"]
         self.H = self.di // c["headdim"]
+        import lin_golden                           # same folder as the other golden models
+        import vec_golden
+        self.lg = lin_golden
+        self.vg = vec_golden
+        if vec == "fixed":
+            assert mode == "fixed", "vec='fixed' needs mode='fixed'"
+            assert not self.cfg["hadamard"], "fixed vector path assumes no Hadamard rotation"
         self.state_fmt = state_fmt or (self.sg.W_H, self.sg.F_H)
         self.stats = {}
 
@@ -161,19 +169,23 @@ class HwRef:
         s = self.p[name + "_s"].astype(np.float32)
         return q, s
 
+    def _rescaled_dot(self, xa, sa, q, s16):
+        """Exact group dot products, then rtl/lin_scale.sv: one rounding to fp32."""
+        G = s16.shape[1]
+        grp = q.shape[1] // G
+        acc = np.stack([np.rint(xa[:, g * grp:(g + 1) * grp] @ q[:, g * grp:(g + 1) * grp].T)
+                        for g in range(G)], axis=-1).astype(np.int64)      # (T, O, G)
+        k = np.rint(np.log2(sa[:, 0])).astype(np.int64)                    # sa = 2^k
+        return self.lg.lin_rescale(acc, s16, k)
+
     def qlinear(self, x, name):
         c = self.cfg
-        q, s = self._deq_w(name)                    # q (O, din) int4 values, s (O, G)
+        q = self.p[name + "_w"].astype(np.float32)  # (O, din) int4 values
+        s16 = self.p[name + "_s"]                   # (O, G) fp16
         if c["hadamard"]:
             x = fwht(x)
         xa, sa = quant_act(x, c["a_bits"])
-        G = s.shape[1]
-        grp = q.shape[1] // G
-        y = np.zeros((x.shape[0], q.shape[0]), np.float32)
-        for g in range(G):                          # integer dot products (exact in fp32)
-            sl = slice(g * grp, (g + 1) * grp)
-            y += (xa[:, sl] @ q[:, sl].T) * s[:, g]
-        return y * sa
+        return self._rescaled_dot(xa, sa, q, s16)
 
     def conv(self, xbc, i):
         cs = self.p[f"L{i}.conv_s"].astype(np.float32).reshape(-1, 1)        # per channel
@@ -208,6 +220,14 @@ class HwRef:
         self._count("clip dt_raw", n1)
         self._count("clip x", n2)
         self._count("clip B/C", n3 + n4)
+        return (self.ssm_int(raw_q, x_q, B_q, C_q, i) / 2 ** sg.F_Y).astype(np.float32)
+
+    def ssm_int(self, raw_q, x_q, B_q, C_q, i):
+        """Integer SSM: dt_raw Q.F_RAW (T,H), x Q.F_X (T,H,P), B/C Q.F_B (T,N) -> y Q.F_Y."""
+        ng, sg, nv = self.ng, self.sg, self.nv
+        dt_bias = self.p[f"L{i}.dt_bias"].astype(np.int64)
+        A = self.p[f"L{i}.A"].astype(np.int64)
+        D = self.p[f"L{i}.D"].astype(np.int64)
         delta, dA = nv.discretize(raw_q, dt_bias, A)
         xdt = sat(rsr(delta[:, :, None] * x_q, ng.F_O + sg.F_X - sg.F_XD), sg.W_X)
         self._count("clip dt*x", int(np.count_nonzero(
@@ -218,7 +238,7 @@ class HwRef:
         self._count("saturated SSM state", n_sat)
         self.stats["max |state|"] = max(self.stats.get("max |state|", 0.0),
                                         round(sg.STATS["max_h"] / 2 ** sg.F_H, 3))
-        return (y / 2 ** sg.F_Y).astype(np.float32)
+        return y
 
     def block(self, u, i):
         c, di, H = self.cfg, self.di, self.H
@@ -232,21 +252,84 @@ class HwRef:
         y = rmsnorm(y * silu(z), self.p[f"L{i}.norm_w"])
         return self.qlinear(y, f"L{i}.out")
 
+    # ------------------------------------------------------------------------
+    # fixed-point vector path (model/vec_golden.py): no float between layers
+    # ------------------------------------------------------------------------
+    def _maxabs(self, key, v, f):
+        self.stats[key] = max(self.stats.get(key, 0.0), round(float(np.abs(v).max()) / 2 ** f, 3))
+
+    def _wfix(self, name, w, f):
+        q, n = to_fixed(self.p[name], w, f)
+        self._count(f"clip {name.split('.')[-1]}", n)
+        return q
+
+    def lin_fx(self, q, k, name, F, W):
+        """int8 activations q (T, din) with scale 2^k -> rows in Q.F (W bits)."""
+        wq = self.p[name + "_w"].astype(np.float32)
+        s16 = self.p[name + "_s"]
+        G = s16.shape[1]
+        grp = wq.shape[1] // G
+        qf = q.astype(np.float32)
+        acc = np.stack([np.rint(qf[:, g * grp:(g + 1) * grp] @ wq[:, g * grp:(g + 1) * grp].T)
+                        for g in range(G)], axis=-1).astype(np.int64)
+        return self.vg.lin_fixed(acc, s16, k, F, W)
+
+    def forward_fixed(self, ids):
+        vg, ng, sg, c = self.vg, self.ng, self.sg, self.cfg
+        di, H = self.di, self.H
+        N, P = c["d_state"], c["headdim"]
+        T = len(ids)
+        h = vg.embed_fx(self.p["emb_w"][ids].astype(np.int64), self.p["emb_s"][ids])
+        for i in range(c["n_layer"]):
+            q, k = vg.norm_q8(h, self._wfix(f"L{i}.norm", vg.W_NW, vg.F_NW))
+            zx = self.lin_fx(q, k, f"L{i}.in", vg.F_LI, vg.W_LI)
+            self._maxabs("max |in_proj out|", zx, vg.F_LI)
+            z, xbc, dt12 = np.split(zx, [di, 2 * di + 2 * N], axis=1)
+            cv = vg.conv_fx(xbc, self.p[f"L{i}.conv_w"], self.p[f"L{i}.conv_s"],
+                            self._wfix(f"L{i}.conv_b", vg.W_LI, vg.F_LI))
+            self._maxabs("max |conv out|", cv, vg.F_LI)
+            xbc = vg.silu_fx(cv)
+            x12, B12, C12 = np.split(xbc, [di, di + N], axis=1)
+            # Q.12 -> SSM input formats (round, saturate, count clipping)
+            def conv_to(v, w, f, key):
+                r = vg.shift_round(v, f - vg.F_LI)
+                self._count(key, int(np.count_nonzero(r != sat(r, w))))
+                return sat(r, w)
+            raw_q = conv_to(dt12, ng.W_RAW, ng.F_RAW, "clip dt_raw")
+            x_q = conv_to(x12, sg.W_X, sg.F_X, "clip x")
+            B_q = conv_to(B12, sg.W_B, sg.F_B, "clip B/C")
+            C_q = conv_to(C12, sg.W_B, sg.F_B, "clip B/C")
+            y = self.ssm_int(raw_q, x_q.reshape(T, H, P), B_q, C_q, i).reshape(T, di)
+            g = vg.gate_fx(y, z)
+            self._maxabs("max |gated y|", g, vg.F_R)
+            q2, k2 = vg.norm_q8(g, self._wfix(f"L{i}.norm_w", vg.W_NW, vg.F_NW))
+            out = self.lin_fx(q2, k2, f"L{i}.out", vg.F_LO, vg.W_LO)
+            h = sat(h + out, vg.W_R)
+            self._maxabs("max |residual|", h, vg.F_R)
+        q, k = vg.norm_q8(h, self._wfix("norm_f", vg.W_NW, vg.F_NW))
+        emb = self.p["emb_w"].astype(np.float32)
+        es16 = self.p["emb_s"]
+        sa = np.exp2(k.astype(np.float64))[:, None]
+        return np.concatenate([self._rescaled_dot(q[t:t + 64].astype(np.float32), sa[t:t + 64],
+                                                  emb, es16)
+                               for t in range(0, T, 64)], axis=0)
+
     def forward(self, ids):
+        if self.vec == "fixed":
+            return self.forward_fixed(np.asarray(ids))
         c = self.cfg
         emb = self.p["emb_w"].astype(np.float32)
-        es = self.p["emb_s"].astype(np.float32)
+        es16 = self.p["emb_s"]
+        es = es16.astype(np.float32)
         grp = emb.shape[1] // es.shape[1]
         h = (emb[ids] * np.repeat(es[ids], grp, axis=1)).astype(np.float32)
         for i in range(c["n_layer"]):
             h = h + self.block(rmsnorm(h, self.p[f"L{i}.norm"]), i)
         h = rmsnorm(h, self.p["norm_f"])
         xa, sa = quant_act(h, c["a_bits"])
-        logits = np.zeros((len(ids), emb.shape[0]), np.float32)
-        for g in range(es.shape[1]):                 # tied head, int8 x int8 per group
-            sl = slice(g * grp, (g + 1) * grp)
-            logits += (xa[:, sl] @ emb[:, sl].T) * es[:, g]
-        return logits * sa
+        # tied head: int8 x int8 group sums, same rescale as the linear layers
+        return np.concatenate([self._rescaled_dot(xa[t:t + 64], sa[t:t + 64], emb, es16)
+                               for t in range(0, len(ids), 64)], axis=0)
 
 
 # ----------------------------------------------------------------------------
@@ -318,6 +401,13 @@ def selftest(golden_dir=None, tmpdir="."):
     top1 = (l_fix.argmax(-1) == l_flt.argmax(-1)).mean()
     print(f"random model, fixed vs float SSM: rel logit diff {rel:.2e}, top-1 agreement {top1:.1%}")
     print("fixed-point events:", lf.stats)
+    lv = HwRef(path, "fixed", golden_dir, vec="fixed")
+    l_vec = lv.forward(ids)
+    rel = np.linalg.norm(l_vec - l_fix) / np.linalg.norm(l_fix)
+    top1 = (l_vec.argmax(-1) == l_fix.argmax(-1)).mean()
+    print(f"random model, fixed vector path vs float vector path: rel logit diff {rel:.2e}, "
+          f"top-1 agreement {top1:.1%}")
+    print("fixed vector path events:", lv.stats)
     os.remove(path)
 
 

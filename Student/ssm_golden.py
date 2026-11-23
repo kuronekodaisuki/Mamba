@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 # Fixed-point formats: must match the ssm_scan_unit.sv parameters
-W_H, F_H = 24, 16
+W_H, F_H = 20, 16          # state; max |h| of the trained student is ~1.9
 W_A, F_A = 18, 16
 W_X, F_X = 16, 10
 F_XD = 14              # dt*x has its own fraction (dt can be ~1e-3)
