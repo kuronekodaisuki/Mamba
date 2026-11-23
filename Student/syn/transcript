@@ -1,12 +1,34 @@
-# vsim -c tb_lin_dot -do "run -all; quit" 
-# Start time: 14:28:49 on Nov 20,2026
+# vsim -c tb_mamba_core -do "run -all; quit" 
+# Start time: 17:01:52 on Nov 23,2026
 # Loading sv_std.std
-# Loading work.tb_lin_dot
+# Loading work.tb_mamba_core
+# Loading work.mamba_core
+# Loading work.sdp_ram
+# Loading work.norm_q8
+# Loading work.rshift_round
+# Loading work.saturate
+# Loading work.lin_unit
 # Loading work.lin_dot
 # Loading work.adder_tree
+# Loading work.lin_scale
+# Loading work.conv_unit
+# Loading work.silu_unit
+# Loading work.ssm_discretize
+# Loading work.nau
+# Loading work.pipe_delay
+# Loading work.ssm_scan_unit
+# Loading work.gate_unit
 # run -all
-# PASS: 1000 dot products match the golden model
-# ** Note: $finish    : tb_lin_dot.sv(70)
-#    Time: 5410 ns  Iteration: 1  Instance: /tb_lin_dot
-# End time: 14:28:49 on Nov 20,2026, Elapsed time: 0:00:00
+# loading memories (40128 weight words) ...
+# token 0 done at 632598000
+# token 1 done at 875170000
+# token 2 done at 1117742000
+# token 3 done at 1360314000
+# token 4 done at 1602886000
+# token 5 done at 1845458000
+# checked: h 18432 (0 bad), in_proj 83520 (0), conv 46080 (0), ssm y 36864 (0), gate 36864 (0), k errors 0
+# PASS: 6 tokens x 12 layers match the fixed-point reference
+# ** Note: $finish    : tb_mamba_core.sv(120)
+#    Time: 1845462 ns  Iteration: 1  Instance: /tb_mamba_core
+# End time: 17:05:43 on Nov 23,2026, Elapsed time: 0:03:51
 # Errors: 0, Warnings: 0

@@ -1,4 +1,4 @@
-# 300 MHz target: the timing report then shows how far above / below it we are
+# 250 MHz target
 create_clock -name clk -period 4.000 [get_ports clk]
 derive_clock_uncertainty
 
