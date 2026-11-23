@@ -8,6 +8,7 @@
 module tb_lin_unit;
   localparam int K = 128, G_MAX = 4, AW = 16, RW = 12;
   localparam int MAXW = 8192, BASE = 37;
+  localparam int RL = 3;            // memory read latency (sdp_ram with IN_REG + OUT_REG)
 
   logic clk = 1'b0;
   always #2 clk = ~clk;
@@ -30,15 +31,23 @@ module tb_lin_unit;
   logic [31:0]           y_data;
   logic                  done;
 
-  lin_unit #(.K(K), .G_MAX(G_MAX), .AW(AW), .RW(RW), .RL(1)) dut (.*);
+  lin_unit #(.K(K), .G_MAX(G_MAX), .AW(AW), .RW(RW), .RL(RL)) dut (.*);
 
-  // ---- weight / scale memory model (read latency 1, like sdp_ram) ----------------
+  // ---- weight / scale memory model (read latency RL, like sdp_ram) ----------------
   logic [K*4-1:0] wmem [MAXW];
   logic [15:0]    smem [MAXW];
+  logic [RL-1:0][K*4-1:0] wpipe;
+  logic [RL-1:0][15:0]    spipe;
   always_ff @(posedge clk) begin
-    w_data <= wmem[w_addr];
-    s_data <= smem[w_addr];
+    wpipe[0] <= wmem[w_addr];
+    spipe[0] <= smem[w_addr];
+    for (int i = 1; i < RL; i++) begin
+      wpipe[i] <= wpipe[i-1];
+      spipe[i] <= spipe[i-1];
+    end
   end
+  assign w_data = wpipe[RL-1];
+  assign s_data = spipe[RL-1];
 
   // ---- vectors ------------------------------------------------------------------------
   logic [K*4-1:0] wfile [MAXW];

@@ -88,9 +88,9 @@ module syn_top (
   logic [KL-1:0][3:0]  w_data;
   logic [15:0]         s_data;
 
-  sdp_ram #(.W(KL*4), .D(WD)) u_wmem (
+  sdp_ram #(.W(KL*4), .D(WD), .IN_REG(1'b1), .OUT_REG(1'b1)) u_wmem (
     .clk(clk), .we(ctl_q[6]), .waddr(m_wa), .wdata(m_wd), .raddr(w_addr), .rdata(w_data));
-  sdp_ram #(.W(16), .D(WD)) u_smem (
+  sdp_ram #(.W(16), .D(WD), .IN_REG(1'b1), .OUT_REG(1'b1)) u_smem (
     .clk(clk), .we(ctl_q[6]), .waddr(m_wa), .wdata(m_sd), .raddr(w_addr), .rdata(s_data));
 
   // ---- linear layer unit -------------------------------------------------------
@@ -98,7 +98,7 @@ module syn_top (
   logic [11:0]         q_row;
   logic [31:0]         q_y;
 
-  lin_unit #(.K(KL), .G_MAX(4), .AW(WA), .RW(12), .RL(1)) u_lin (
+  lin_unit #(.K(KL), .G_MAX(4), .AW(WA), .RW(12), .RL(3)) u_lin (
     .clk(clk), .rst_n(rst_qq),
     .act_we(ctl_q[4]), .act_g(a_g), .act_d(a_d),
     .start(ctl_q[5]), .base(j_base), .n_rows(j_rows), .n_groups(j_groups), .k(j_k),

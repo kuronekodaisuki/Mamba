@@ -6,6 +6,9 @@ rtl/lin_scale.sv : rescale one output row from its group sums (lin_rescale below
 
   python3 model/lin_golden.py --out vec            # 1000 dot vectors, K = 128
   python3 model/lin_golden.py --scale --out vec    # rescale vectors
+  python3 model/lin_golden.py --unit --out vec     # lin_unit, random 300 x 2 groups
+  python3 model/lin_golden.py --unit --npz ../export/weights.npz --layer 0 --proj in --out vec
+                                                   # lin_unit with trained weights
 
 Files (one vector per line, hex, lane k in the low bits):
   vec/lin_w.hex  K int4   (K*4 bits, same packing as student/export.py hex/L??_*_w.hex)
@@ -98,6 +101,45 @@ def scale_vectors(out, n_rows, seed):
     return len(beats)
 
 
+def unit_vectors(out, seed, rows=300, groups=2, npz=None, layer=0, proj="in", K=128):
+    """Vectors for rtl/lin_unit.sv.
+       vec/lu_w.hex   rows*G words, K int4 each (export hex format)
+       vec/lu_s.hex   rows*G fp16 scales
+       vec/lu_a.hex   G activation groups, K int8 each
+       vec/lu_cfg.hex rows, G, k (two's complement, 8 bits)
+       vec/lu_y.hex   rows float32 results"""
+    rng = np.random.default_rng(seed)
+    if npz:
+        z = np.load(npz)
+        W = z[f"L{layer}.{proj}_w"].astype(np.int64)            # (O, din)
+        S = z[f"L{layer}.{proj}_s"].astype(np.float16)          # (O, G)
+        rows, din = W.shape
+        groups = din // K
+        src = f"{npz} layer {layer} {proj}_proj"
+    else:
+        din = groups * K
+        W = rng.integers(-8, 8, (rows, din))
+        S = np.exp(rng.uniform(np.log(1e-3), np.log(0.1), (rows, groups))).astype(np.float16)
+        src = "random"
+    A = rng.integers(-128, 128, din)
+    k = int(rng.integers(-12, -2))
+    acc = (W * A).reshape(rows, groups, K).sum(-1)               # exact group sums
+    Y = lin_rescale(acc[None], S, np.array([k]))[0]
+
+    with open(f"{out}/lu_w.hex", "w") as f:
+        f.writelines(pack(W[r, g * K:(g + 1) * K], 4) + "\n"
+                     for r in range(rows) for g in range(groups))
+    with open(f"{out}/lu_s.hex", "w") as f:
+        f.writelines(f"{int(v):04x}\n" for v in S.view(np.uint16).reshape(-1))
+    with open(f"{out}/lu_a.hex", "w") as f:
+        f.writelines(pack(A[g * K:(g + 1) * K], 8) + "\n" for g in range(groups))
+    with open(f"{out}/lu_cfg.hex", "w") as f:
+        f.write(f"{rows:x}\n{groups:x}\n{k & 0xFF:02x}\n")
+    with open(f"{out}/lu_y.hex", "w") as f:
+        f.writelines(f"{int(v):08x}\n" for v in Y.astype(np.float32).view(np.uint32))
+    print(f"lin_unit vectors ({src}): {rows} rows x {groups} groups, k={k} -> {out}/lu_*.hex")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--K", type=int, default=128)
@@ -105,7 +147,15 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="vec")
     ap.add_argument("--scale", action="store_true", help="vectors for rtl/lin_scale.sv")
+    ap.add_argument("--unit", action="store_true", help="vectors for rtl/lin_unit.sv")
+    ap.add_argument("--npz", default=None, help="exported weights.npz (else random weights)")
+    ap.add_argument("--layer", type=int, default=0)
+    ap.add_argument("--proj", choices=["in", "out"], default="in")
     a = ap.parse_args()
+    if a.unit:
+        os.makedirs(a.out, exist_ok=True)
+        unit_vectors(a.out, a.seed, npz=a.npz, layer=a.layer, proj=a.proj, K=a.K)
+        return
     if a.scale:
         os.makedirs(a.out, exist_ok=True)
         scale_vectors(a.out, a.n, a.seed)
