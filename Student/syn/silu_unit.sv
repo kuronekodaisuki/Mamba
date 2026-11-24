@@ -5,7 +5,7 @@
 //   width 1/8 on [0, 16), Q.16); a >= 16 -> 1; x < 0 -> 1 - sigmoid(|x|)
 //   y = sat24(round(x * sigmoid / 2^16))
 //
-// One input per cycle, latency 6. in_tag travels with the data.
+// One input per cycle, latency 7. in_tag travels with the data.
 // -----------------------------------------------------------------------------
 module silu_unit #(
   parameter int W     = 24,      // Q.12
@@ -219,7 +219,7 @@ module silu_unit #(
   logic                v4;
   logic signed [W-1:0] x4;
   logic [16:0]         s4;
-  logic [W_TAG-1:0]    t1, t2, t3, t4, t5;
+  logic [W_TAG-1:0]    t1, t2, t3, t4, t5, t6;
 
   always_ff @(posedge clk) begin
     v4 <= rst_n & v3;
@@ -236,15 +236,22 @@ module silu_unit #(
     p5 <= x4 * $signed({1'b0, s4});
   end
 
-  // ---- stage 6: round, saturate ---------------------------------------------------------
-  logic signed [W+2:0] r6;
-  logic signed [W-1:0] y6;
-  rshift_round #(.WI(W + 18), .SHIFT(16)) u_r (.din(p5), .dout(r6));
-  saturate #(.WI(W + 3), .WO(W)) u_s (.din(r6), .dout(y6));
+  // ---- stage 6: round; stage 7: saturate (one stage missed 4 ns) ----------------------------
+  logic signed [W+2:0] r6c, r6;
+  logic                v6;
+  logic signed [W-1:0] y7;
+  rshift_round #(.WI(W + 18), .SHIFT(16)) u_r (.din(p5), .dout(r6c));
 
   always_ff @(posedge clk) begin
-    out_valid <= rst_n & v5;
-    out_y     <= y6;
-    t1 <= in_tag;  t2 <= t1;  t3 <= t2;  t4 <= t3;  t5 <= t4;  out_tag <= t5;
+    v6 <= rst_n & v5;
+    r6 <= r6c;
+  end
+
+  saturate #(.WI(W + 3), .WO(W)) u_s (.din(r6), .dout(y7));
+
+  always_ff @(posedge clk) begin
+    out_valid <= rst_n & v6;
+    out_y     <= y7;
+    t1 <= in_tag;  t2 <= t1;  t3 <= t2;  t4 <= t3;  t5 <= t4;  t6 <= t5;  out_tag <= t6;
   end
 endmodule

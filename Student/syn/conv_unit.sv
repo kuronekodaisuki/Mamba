@@ -17,7 +17,7 @@
 //   p_data = {b[71:48] (Q.12), s[47:32] (fp16), w3, w2, w1, w0 [31:0] (int8)}
 //   (w3 multiplies the current token, as in student/export.py hex/L??_conv_w.hex)
 //
-// Latency in -> out: RL + 8 + 6 (SiLU) cycles.
+// Latency in -> out: RL + 10 + 7 (SiLU) cycles.
 // -----------------------------------------------------------------------------
 module conv_unit #(
   parameter int NCH    = 640,
@@ -55,19 +55,6 @@ module conv_unit #(
   sdp_ram #(.W(72), .D(NCH * NLAYER)) u_state (
     .clk(clk), .we(st_we), .waddr(st_wa), .wdata(st_wd), .raddr(addr0), .rdata(st_rd));
 
-  // align the state (latency 1) with the parameters (latency RL)
-  logic [71:0] st_al;
-  if (RL > 1) begin : g_al
-    logic [RL-2:0][71:0] d;
-    always_ff @(posedge clk) begin
-      d[0] <= st_rd;
-      for (int i = 1; i < RL - 1; i++) d[i] <= d[i-1];
-    end
-    assign st_al = d[RL-2];
-  end else begin : g_no_al
-    assign st_al = st_rd;
-  end
-
   // input fields delayed by RL
   logic [RL-1:0]              a_v, a_f;
   logic [RL-1:0][AW-1:0]      a_addr;
@@ -89,10 +76,26 @@ module conv_unit #(
     end
   end
 
+  // align the state (latency 1) with the parameters (latency RL).
+  // With RL > 1 the "first token" clear is applied while registering the M20K
+  // output, so the multipliers get a fabric register (no M20K -> LUT -> DSP path).
+  logic [71:0] st_al;
+  logic [71:0] hist;
+  if (RL > 1) begin : g_al
+    logic [RL-2:0][71:0] d;
+    always_ff @(posedge clk) begin
+      d[0] <= a_f[0] ? 72'd0 : st_rd;
+      for (int i = 1; i < RL - 1; i++) d[i] <= d[i-1];
+    end
+    assign st_al = d[RL-2];
+    assign hist  = st_al;
+  end else begin : g_no_al
+    assign st_al = st_rd;
+    assign hist  = a_f[RL-1] ? 72'd0 : st_al;
+  end
+
   // ---- c1: taps, products, state update -----------------------------------------------
   logic signed [23:0] h0, h1, h2, xc;
-  logic [71:0]        hist;
-  assign hist = a_f[RL-1] ? 72'd0 : st_al;
   assign h0   = hist[23:0];
   assign h1   = hist[47:24];
   assign h2   = hist[71:48];
@@ -125,21 +128,60 @@ module conv_unit #(
     st_wd <= {xc, h2, h1};
   end
 
-  // ---- c2: sum of the four taps ------------------------------------------------------------
+  // ---- c2: sum of the four taps, two adder stages ---------------------------------------------
+  // (Quartus packs m0 + m1 into the DSP; the rest of a one-cycle 4-input sum and
+  // the next multiplier did not fit 4 ns; preserve keeps acc2 out of the DSP)
+  logic                v2a;
+  logic signed [32:0]  s01, s23;
+  logic signed [11:0]  sm2a;
+  logic [4:0]          sh2a;
+  logic signed [23:0]  b2a;
+  logic [W_TAG-1:0]    t2a;
+
+  always_ff @(posedge clk) begin
+    v2a  <= rst_n & v1;
+    s01  <= 33'(m0) + 33'(m1);
+    s23  <= 33'(m2) + 33'(m3);
+    sm2a <= sm1;
+    sh2a <= sh1;
+    b2a  <= b1;
+    t2a  <= t1;
+  end
+
   logic                v2;
-  logic signed [33:0]  acc2;
+  (* preserve *) logic signed [33:0] acc2;
   logic signed [11:0]  sm2;
   logic [4:0]          sh2;
   logic signed [23:0]  b2;
   logic [W_TAG-1:0]    t2;
 
   always_ff @(posedge clk) begin
-    v2   <= rst_n & v1;
-    acc2 <= 34'(m0) + 34'(m1) + 34'(m2) + 34'(m3);
-    sm2  <= sm1;
-    sh2  <= sh1;
-    b2   <= b1;
-    t2   <= t1;
+    v2   <= rst_n & v2a;
+    acc2 <= 34'(s01) + 34'(s23);
+    sm2  <= sm2a;
+    sh2  <= sh2a;
+    b2   <= b2a;
+    t2   <= t2a;
+  end
+
+  // ---- c2b: multiplier operands (Quartus packed acc2 into the DSP input register,
+  //      leaving DSP adder -> 34-bit add -> DSP input in one cycle) ------------------------------
+  logic                v2b;
+  logic signed [17:0]  lo2b;
+  logic signed [16:0]  hi2b;
+  logic signed [11:0]  sm2b;
+  logic [4:0]          sh2b;
+  logic signed [23:0]  b2b;
+  logic [W_TAG-1:0]    t2b;
+
+  always_ff @(posedge clk) begin
+    v2b  <= rst_n & v2;
+    lo2b <= $signed({1'b0, acc2[16:0]});
+    hi2b <= $signed(acc2[33:17]);
+    sm2b <= sm2;
+    sh2b <= sh2;
+    b2b  <= b2;
+    t2b  <= t2;
   end
 
   // ---- c3: acc * m as two partial products (every DSP input <= 18 bits) ---------------------
@@ -151,12 +193,12 @@ module conv_unit #(
   logic [W_TAG-1:0]    t3;
 
   always_ff @(posedge clk) begin
-    v3   <= rst_n & v2;
-    plo3 <= $signed({1'b0, acc2[16:0]}) * sm2;
-    phi3 <= $signed(acc2[33:17]) * sm2;
-    sh3  <= sh2;
-    b3   <= b2;
-    t3   <= t2;
+    v3   <= rst_n & v2b;
+    plo3 <= lo2b * sm2b;
+    phi3 <= hi2b * sm2b;
+    sh3  <= sh2b;
+    b3   <= b2b;
+    t3   <= t2b;
   end
 
   logic                v4;

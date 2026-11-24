@@ -10,26 +10,16 @@ set_global_assignment -name DEVICE 10AX115S2F45I1SG
 set_global_assignment -name TOP_LEVEL_ENTITY core_top
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 
+# RTL files are always taken from this folder (a stale ../rtl was silently used before)
+set rtl ""
 foreach f {
-  ../rtl/fixed_point.sv
-  ../rtl/adder_tree.sv
-  ../rtl/sdp_ram.sv
-  ../rtl/sdp_ram_wide.sv
-  ../rtl/nau.sv
-  ../rtl/ssm_discretize.sv
-  ../rtl/ssm_scan_unit.sv
-  ../rtl/lin_dot.sv
-  ../rtl/lin_scale.sv
-  ../rtl/lin_unit.sv
-  ../rtl/norm_q8.sv
-  ../rtl/silu_unit.sv
-  ../rtl/gate_unit.sv
-  ../rtl/conv_unit.sv
-  ../rtl/mamba_core.sv
-  core_top.sv
+  fixed_point.sv adder_tree.sv sdp_ram.sv sdp_ram_wide.sv nau.sv ssm_discretize.sv
+  ssm_scan_unit.sv lin_dot.sv lin_scale.sv lin_unit.sv norm_q8.sv silu_unit.sv
+  gate_unit.sv conv_unit.sv mamba_core.sv
 } {
-  set_global_assignment -name SYSTEMVERILOG_FILE $f
+  set_global_assignment -name SYSTEMVERILOG_FILE $rtl$f
 }
+set_global_assignment -name SYSTEMVERILOG_FILE core_top.sv
 set_global_assignment -name SDC_FILE top.sdc
 set_global_assignment -name OPTIMIZATION_MODE "SUPERIOR PERFORMANCE"
 # workarounds found on this machine (synthesis hang / slow shift-register mapping)

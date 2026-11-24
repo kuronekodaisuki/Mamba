@@ -19,7 +19,7 @@
 // Input: one beat per group, in_first on the first group of a row, in_last on
 // the last (both on the same beat for a one-group row). in_k and in_tag are
 // taken from the last beat. Bubbles are allowed between beats.
-// Latency from the last beat to out_valid: 9 cycles.
+// Latency from the last beat to out_valid: 11 cycles.
 // -----------------------------------------------------------------------------
 module lin_scale #(
   parameter int W_ACC = 19,
@@ -181,24 +181,50 @@ module lin_scale #(
     tag6  <= tag5;
   end
 
-  // ---- stage 7: shift ----------------------------------------------------------------
+  // ---- stage 7a / 7b: shift (coarse by multiples of 8, then fine) ---------------------
+  // Two arithmetic shifts compose exactly (floor of floor, and left shifts stay
+  // inside W_X bits), so this equals a single shift by rs / ls.
+  logic                    v7a, left7a;
+  logic [2:0]              f7a;
+  logic signed [W_X-1:0]   x7a;
+  logic [W_TAG-1:0]        tag7a;
+
+  always_ff @(posedge clk) begin
+    v7a    <= rst_n & v6;
+    left7a <= left6;
+    f7a    <= left6 ? ls6[2:0] : rs6[2:0];
+    x7a    <= left6 ? (W_X'(a6) <<< {ls6[6:3], 3'b000}) : (W_X'(a6) >>> {rs6[6:3], 3'b000});
+    tag7a  <= tag6;
+  end
+
   logic                    v7;
   logic signed [W_X-1:0]   x7;
   logic [W_TAG-1:0]        tag7;
 
   always_ff @(posedge clk) begin
-    v7   <= rst_n & v6;
-    x7   <= left6 ? (W_X'(a6) <<< ls6) : W_X'(a6 >>> rs6);
-    tag7 <= tag6;
+    v7   <= rst_n & v7a;
+    x7   <= left7a ? (x7a <<< f7a) : (x7a >>> f7a);
+    tag7 <= tag7a;
   end
 
-  // ---- stage 8: saturate ---------------------------------------------------------------
-  logic signed [W_OUT-1:0] y_c;
-  saturate #(.WI(W_X), .WO(W_OUT)) u_sat (.din(x7), .dout(y_c));
+  // ---- stage 8a: overflow flags (x7 fits iff bits W_X-1 .. W_OUT-1 are all equal) -----
+  logic                    v8, ovp8, ovn8;
+  logic [W_OUT-1:0]        lo8;
+  logic [W_TAG-1:0]        tag8;
 
   always_ff @(posedge clk) begin
-    out_valid <= rst_n & v7;
-    out_tag   <= tag7;
-    out_y     <= y_c;
+    v8   <= rst_n & v7;
+    ovp8 <= !x7[W_X-1] &&  (|x7[W_X-2:W_OUT-1]);
+    ovn8 <=  x7[W_X-1] && !(&x7[W_X-2:W_OUT-1]);
+    lo8  <= x7[W_OUT-1:0];
+    tag8 <= tag7;
+  end
+
+  // ---- stage 8b: saturate ---------------------------------------------------------------
+  always_ff @(posedge clk) begin
+    out_valid <= rst_n & v8;
+    out_tag   <= tag8;
+    out_y     <= ovp8 ? {1'b0, {(W_OUT-1){1'b1}}} :
+                 ovn8 ? {1'b1, {(W_OUT-1){1'b0}}} : lo8;
   end
 endmodule

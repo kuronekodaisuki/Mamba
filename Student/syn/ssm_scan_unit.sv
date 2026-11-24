@@ -67,7 +67,7 @@ module ssm_scan_unit #(
   localparam int DEPTH = NHEADS * P;
   localparam int AW    = $clog2(DEPTH);
   localparam int LVL   = $clog2(N);
-  localparam int WB_LAT = 7;                 // read address -> write-back
+  localparam int WB_LAT = 8;                 // read address -> write-back (incl. per-memory write register)
 
   // product widths and requantization shifts
   localparam int W_PA = W_A + W_H,  SH_A = F_A;                // dA*h   -> F_H
@@ -167,7 +167,9 @@ module ssm_scan_unit #(
 
   wire  [N*W_H-1:0]      rd_s1;                // read data (address registered)
   logic [N*W_H-1:0]      rd_s2;                // output register
-  logic [N*W_H-1:0]      rd_s2b;               // relay register
+  // preserve: in the full core Quartus moved rd_s2b and op_h into / across the
+  // DSP blocks, leaving M20K -> LUT -> multiplier in one cycle (slack -2.1 ns)
+  (* preserve *) logic [N*W_H-1:0] rd_s2b;  // relay register
   logic                  wr_en;
   logic [AW-1:0]         waddr;
   logic [N-1:0][W_H-1:0] wr_data;
@@ -175,9 +177,19 @@ module ssm_scan_unit #(
 
   assign wr_flat = wr_data;
 
+  // the write port is registered once more per memory (dont_merge copies):
+  // one r6 register driving all NMEM memories (~400 M20K) missed 4 ns
   for (genvar j = 0; j < NMEM; j++) begin : g_mem
+    (* dont_merge *) logic          we_j;
+    (* dont_merge *) logic [AW-1:0] wa_j;
+    logic [MW-1:0]                  wd_j;
+    always_ff @(posedge clk) begin
+      we_j <= wr_en;
+      wa_j <= waddr;
+      wd_j <= wr_flat[j*MW +: MW];
+    end
     sdp_ram #(.W(MW), .D(DEPTH)) u_ram (
-      .clk(clk), .we(wr_en), .waddr(waddr), .wdata(wr_flat[j*MW +: MW]),
+      .clk(clk), .we(we_j), .waddr(wa_j), .wdata(wd_j),
       .raddr(raddr), .rdata(rd_s1[j*MW +: MW]));
   end
 
@@ -205,8 +217,8 @@ module ssm_scan_unit #(
   // ---------------------------------------------------------------------------
   // s3: multiplier operands
   // ---------------------------------------------------------------------------
-  logic [N-1:0][W_H-1:0] op_h;
-  logic [N-1:0][W_B-1:0] op_B;
+  (* preserve *) logic [N-1:0][W_H-1:0] op_h;
+  (* preserve *) logic [N-1:0][W_B-1:0] op_B;
   logic [N-1:0][W_H-1:0] rd_lanes;
 
   assign rd_lanes = rd_s2b;

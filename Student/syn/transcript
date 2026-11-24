@@ -1,5 +1,5 @@
 # vsim -c tb_mamba_core -do "run -all; quit" 
-# Start time: 17:01:52 on Nov 23,2026
+# Start time: 19:07:03 on Nov 23,2026
 # Loading sv_std.std
 # Loading work.tb_mamba_core
 # Loading work.mamba_core
@@ -20,15 +20,15 @@
 # Loading work.gate_unit
 # run -all
 # loading memories (40128 weight words) ...
-# token 0 done at 632598000
-# token 1 done at 875170000
-# token 2 done at 1117742000
-# token 3 done at 1360314000
-# token 4 done at 1602886000
-# token 5 done at 1845458000
+# token 0 done at 632886000
+# token 1 done at 875746000
+# token 2 done at 1118606000
+# token 3 done at 1361466000
+# token 4 done at 1604326000
+# token 5 done at 1847186000
 # checked: h 18432 (0 bad), in_proj 83520 (0), conv 46080 (0), ssm y 36864 (0), gate 36864 (0), k errors 0
 # PASS: 6 tokens x 12 layers match the fixed-point reference
 # ** Note: $finish    : tb_mamba_core.sv(120)
-#    Time: 1845462 ns  Iteration: 1  Instance: /tb_mamba_core
-# End time: 17:05:43 on Nov 23,2026, Elapsed time: 0:03:51
+#    Time: 1847190 ns  Iteration: 1  Instance: /tb_mamba_core
+# End time: 19:10:43 on Nov 23,2026, Elapsed time: 0:03:40
 # Errors: 0, Warnings: 0

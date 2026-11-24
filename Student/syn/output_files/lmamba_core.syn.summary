@@ -1,9 +1,9 @@
-Synthesis Status : Successful - Mon Nov 23 18:20:53 2026
+Synthesis Status : Successful - Tue Nov 24 13:46:17 2026
 Revision Name : lmamba_core
 Top-level Entity Name : core_top
 Family : Arria 10
 Quartus Prime Version : 25.3.0 Build 109 09/24/2025 SC Pro Edition
 Device : 10AX115S2F45I1SG
-Logic utilization estimate (in ALMs) : 17,155 / 427,200 ( 4 % )
-Total registers : 42421
-Estimated DSP Blocks Post-Merging : 185
+Logic utilization estimate (in ALMs) : 19,325 / 427,200 ( 5 % )
+Total registers : 53682
+Estimated DSP Blocks Post-Merging : 183

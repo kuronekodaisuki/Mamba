@@ -55,8 +55,8 @@ module norm_q8 #(
   localparam int W_Q   = 60;                      // shifted / rounded
   localparam logic [W_SS-1:0] EPS_Q = W_SS'(42950);   // round(1e-5 * 2^32)
 
-  typedef enum logic [3:0] {S_IDLE, S_IN, S_C1, S_C2, S_C3, S_C4, S_C5, S_C6,
-                            S_C7, S_C8, S_C9, S_OUT} state_t;
+  typedef enum logic [3:0] {S_IDLE, S_IN, S_C1, S_C2, S_C3, S_C4, S_C5, S_C6, S_C6B,
+                            S_C7, S_C7B, S_C8, S_C8B, S_C8C, S_C9, S_OUT} state_t;
   state_t st;
 
   logic [3:0]      nl_q;
@@ -120,7 +120,8 @@ module norm_q8 #(
   // buffer of u (one word per element)
   logic [31:0] buf_rd;
   logic [IW-1:0] rd_addr;
-  sdp_ram #(.W(32), .D(NMAX)) u_buf (
+  // OUT_REG: buffer read -> fabric register -> u*R multiplier
+  sdp_ram #(.W(32), .D(NMAX), .OUT_REG(1'b1)) u_buf (
     .clk(clk), .we(d_ok), .waddr(d_idx), .wdata(u_d), .raddr(rd_addr), .rdata(buf_rd));
 
   logic [W_SS-1:0] ss;
@@ -145,8 +146,9 @@ module norm_q8 #(
   logic [8:0]            rfr;
   logic [16:0]           rc0, rc0_q, R;
   logic signed [11:0]    rc1, rc1_q;
-  logic [48:0]           amax;
+  logic [48:0]           amax_p, amax;
   logic [6:0]            ab;           // bitlen(amax)
+  logic                  az;           // amax == 0
   logic signed [7:0]     t_q;
   logic signed [W_K-1:0] k_c;
 
@@ -253,15 +255,15 @@ module norm_q8 #(
   end
 
   logic [W_SS+1:0]  m_tmp;
-  logic signed [20:0] rprod;
-  logic [56:0]      lhs, rhs;
+  logic signed [20:0] rprod;        // registered (S_C6)
+  logic [56:0]      lhs, rhs;         // registered (S_C8B)
   logic signed [10:0] kk;
 
   // ---------------------------------------------------------------------------
   // pass 2: q = sat8(round(u * R / 2^t)), packed into K-lane words
   // ---------------------------------------------------------------------------
-  logic              o1_ok, o2_ok, o3_ok, o4_ok;
-  logic [IW-1:0]     o1_idx, o2_idx, o3_idx, o4_idx;
+  logic              o1_ok, o1b_ok, o2_ok, o3_ok, o4_ok;
+  logic [IW-1:0]     o1_idx, o1b_idx, o2_idx, o3_idx, o4_idx;
   logic signed [W_P-1:0] o2_p, o3_p;
   logic signed [W_Q-1:0] o4_s;
   logic [K-1:0][7:0] pack, pack_n;
@@ -332,20 +334,36 @@ module norm_q8 #(
           st    <= S_C6;
         end
         S_C6: begin                               // R = c0 + round(c1 * fr / 2^9)
-          rprod = rc1_q * $signed({1'b0, rfr});
+          rprod <= rc1_q * $signed({1'b0, rfr});  // registered: DSP product -> adder
+          st    <= S_C6B;                         // was one cycle at 250 MHz
+        end
+        S_C6B: begin
           R  <= 17'($signed({1'b0, rc0_q}) + ((rprod + 21'sd256) >>> 9));
           st <= S_C7;
         end
+        // smallest t with amax <= 127 * 2^t; once per norm, so it is spread over
+        // several states (the 250 MHz fit put the whole chain in one cycle)
         S_C7: begin
-          amax <= 49'(umax) * 49'(R);
+          amax_p <= 49'(umax) * 49'(R);
+          st     <= S_C7B;
+        end
+        S_C7B: begin
+          amax <= amax_p;
           st   <= S_C8;
         end
-        S_C8: begin                               // smallest t: amax <= 127 * 2^t
-          ab = '0;
-          for (int i = 0; i < 49; i++) if (amax[i]) ab = 7'(i + 1);
-          lhs = 57'(amax) << 7;
-          rhs = (57'(1) << (ab + 7)) - (57'(1) << ab);
-          if (amax == '0)     t_q <= -8'sd64;
+        S_C8: begin                               // bit length of amax
+          for (int i = 0; i < 49; i++) if (amax[i]) ab <= 7'(i + 1);
+          if (amax == '0) ab <= '0;
+          az <= (amax == '0);
+          st <= S_C8B;
+        end
+        S_C8B: begin
+          lhs <= 57'(amax) << 7;
+          rhs <= (57'(1) << (ab + 7)) - (57'(1) << ab);
+          st  <= S_C8C;
+        end
+        S_C8C: begin
+          if (az)              t_q <= -8'sd64;
           else if (lhs <= rhs) t_q <= 8'(ab) - 8'sd7;
           else                 t_q <= 8'(ab) - 8'sd6;
           st <= S_C9;
@@ -377,12 +395,14 @@ module norm_q8 #(
     end
   end
 
-  // pass-2 pipeline: read (1) -> u*R (2) -> extra reg (3) -> shift / round (4)
+  // pass-2 pipeline: read (1, 1b) -> u*R (2) -> extra reg (3) -> shift / round (4)
   always_ff @(posedge clk) begin
     o1_ok  <= rst_n && (st == S_OUT) && (rd_cnt < n_q);
     o1_idx <= rd_cnt[IW-1:0];
-    o2_ok  <= rst_n & o1_ok;
-    o2_idx <= o1_idx;
+    o1b_ok  <= rst_n & o1_ok;              // buffer read latency 2 (OUT_REG)
+    o1b_idx <= o1_idx;
+    o2_ok  <= rst_n & o1b_ok;
+    o2_idx <= o1b_idx;
     o2_p   <= $signed(buf_rd) * $signed({1'b0, R});
     o3_ok  <= rst_n & o2_ok;
     o3_idx <= o2_idx;

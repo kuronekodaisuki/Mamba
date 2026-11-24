@@ -5,7 +5,7 @@
 //   z : in_proj output, Q.12 (24 bits)
 //   g : Q.16, saturated to 32 bits (input format of norm_q8)
 //
-// One element per cycle, latency 8.
+// One element per cycle, latency 9.
 // -----------------------------------------------------------------------------
 module gate_unit #(
   parameter int W_Y   = 24,
@@ -29,11 +29,11 @@ module gate_unit #(
     .clk(clk), .rst_n(rst_n), .in_valid(in_valid), .in_x(in_z), .in_tag(in_tag),
     .out_valid(sv), .out_y(sz), .out_tag(st));
 
-  // y waits for SiLU(z) (latency 6)
-  logic [5:0][W_Y-1:0] yd;
+  // y waits for SiLU(z) (latency 7)
+  logic [6:0][W_Y-1:0] yd;
   always_ff @(posedge clk) begin
     yd[0] <= in_y;
-    for (int i = 1; i < 6; i++) yd[i] <= yd[i-1];
+    for (int i = 1; i < 7; i++) yd[i] <= yd[i-1];
   end
 
   logic                      v1;
@@ -42,7 +42,7 @@ module gate_unit #(
 
   always_ff @(posedge clk) begin
     v1 <= rst_n & sv;
-    p1 <= $signed(yd[5]) * sz;
+    p1 <= $signed(yd[6]) * sz;
     t1 <= st;
   end
 

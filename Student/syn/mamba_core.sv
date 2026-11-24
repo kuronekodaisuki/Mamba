@@ -61,35 +61,55 @@ module mamba_core #(
   localparam int PW   = $clog2(P);
   localparam int RW   = 12;
 
+  // ---- host port register (cfg_data fans out to every memory; one stage here
+  //      keeps the host-side routing out of the memory write registers) ------------------
+  logic          cfg_we_r, tok_go_r, tok_first_r;
+  logic [2:0]    cfg_sel_r;
+  logic [15:0]   cfg_addr_r;
+  logic [511:0]  cfg_data_r;
+
+  always_ff @(posedge clk) begin
+    cfg_we_r    <= rst_n & cfg_we;
+    cfg_sel_r   <= cfg_sel;
+    cfg_addr_r  <= cfg_addr;
+    cfg_data_r  <= cfg_data;
+    tok_go_r    <= rst_n & tok_go;          // same delay as the writes: order kept
+    tok_first_r <= tok_first;
+  end
+
   // ---- memories ------------------------------------------------------------------------
   logic [LWA-1:0]      lw_addr;
   logic [K-1:0][3:0]   lw_data;
   logic [15:0]         ls_data;
-  sdp_ram #(.W(K*4), .D(LIN_WORDS), .IN_REG(1'b1), .OUT_REG(1'b1)) u_linw (
-    .clk(clk), .we(cfg_we && cfg_sel == 3'd0), .waddr(LWA'(cfg_addr)), .wdata(cfg_data[K*4-1:0]),
+  // banked, with an explicit address fan-out tree (read latency 5, see sdp_ram_wide.sv)
+  sdp_ram_wide #(.W(K*4), .D(LIN_WORDS), .WS(40), .DB(8192)) u_linw (
+    .clk(clk), .we(cfg_we_r && cfg_sel_r == 3'd0), .waddr(LWA'(cfg_addr_r)), .wdata(cfg_data_r[K*4-1:0]),
     .raddr(lw_addr), .rdata(lw_data));
-  sdp_ram #(.W(16), .D(LIN_WORDS), .IN_REG(1'b1), .OUT_REG(1'b1)) u_lins (
-    .clk(clk), .we(cfg_we && cfg_sel == 3'd1), .waddr(LWA'(cfg_addr)), .wdata(cfg_data[15:0]),
+  sdp_ram_wide #(.W(16), .D(LIN_WORDS), .WS(16), .DB(8192)) u_lins (
+    .clk(clk), .we(cfg_we_r && cfg_sel_r == 3'd1), .waddr(LWA'(cfg_addr_r)), .wdata(cfg_data_r[15:0]),
     .raddr(lw_addr), .rdata(ls_data));
 
   logic [NWA-1:0]      nw_addr;
-  logic signed [17:0]  nw_data;
-  sdp_ram #(.W(18), .D(NORM_WORDS)) u_normw (
-    .clk(clk), .we(cfg_we && cfg_sel == 3'd2), .waddr(NWA'(cfg_addr)), .wdata(cfg_data[17:0]),
+  logic signed [17:0]  nw_data, nw_q;
+  // OUT_REG: the norm / conv multipliers get a registered memory output (conv RL = 2, norm RL = 3)
+  sdp_ram #(.W(18), .D(NORM_WORDS), .OUT_REG(1'b1)) u_normw (
+    .clk(clk), .we(cfg_we_r && cfg_sel_r == 3'd2), .waddr(NWA'(cfg_addr_r)), .wdata(cfg_data_r[17:0]),
     .raddr(nw_addr), .rdata(nw_data));
+  // one more register: the OUT_REG copy was duplicated by Quartus to feed the DSP
+  always_ff @(posedge clk) nw_q <= nw_data;
 
   localparam int CAW = $clog2(NL * CONV_DIM);
   logic [CAW-1:0]      cp_addr;
   logic [71:0]         cp_data;
-  sdp_ram #(.W(72), .D(NL * CONV_DIM)) u_convp (
-    .clk(clk), .we(cfg_we && cfg_sel == 3'd3), .waddr(CAW'(cfg_addr)), .wdata(cfg_data[71:0]),
+  sdp_ram #(.W(72), .D(NL * CONV_DIM), .OUT_REG(1'b1)) u_convp (
+    .clk(clk), .we(cfg_we_r && cfg_sel_r == 3'd3), .waddr(CAW'(cfg_addr_r)), .wdata(cfg_data_r[71:0]),
     .raddr(cp_addr), .rdata(cp_data));
 
   localparam int SAW = $clog2(NL * NH);
   logic [SAW-1:0]      sp_addr;
   logic [47:0]         sp_data;
   sdp_ram #(.W(48), .D(NL * NH)) u_ssmp (
-    .clk(clk), .we(cfg_we && cfg_sel == 3'd4), .waddr(SAW'(cfg_addr)), .wdata(cfg_data[47:0]),
+    .clk(clk), .we(cfg_we_r && cfg_sel_r == 3'd4), .waddr(SAW'(cfg_addr_r)), .wdata(cfg_data_r[47:0]),
     .raddr(sp_addr), .rdata(sp_data));
 
   // residual h
@@ -98,8 +118,8 @@ module mamba_core #(
   logic [DW-1:0]   h_wa, h_ra;
   logic [31:0]     h_wd, h_rd;
   sdp_ram #(.W(32), .D(D)) u_h (
-    .clk(clk), .we(h_we || (cfg_we && cfg_sel == 3'd5)),
-    .waddr(h_we ? h_wa : DW'(cfg_addr)), .wdata(h_we ? h_wd : cfg_data[31:0]),
+    .clk(clk), .we(h_we || (cfg_we_r && cfg_sel_r == 3'd5)),
+    .waddr(h_we ? h_wa : DW'(cfg_addr_r)), .wdata(h_we ? h_wd : cfg_data_r[31:0]),
     .raddr(h_ra), .rdata(h_rd));
 
   // z (Q.12) and x (Q.10) of the current layer
@@ -113,9 +133,9 @@ module mamba_core #(
 
   logic [NH-1:0][15:0]  dt_q;       // dt_raw, Q.10
   logic [N-1:0][15:0]   B_q, C_q;   // Q.12
-  logic [NH-1:0][23:0]  delta_q;    // Q.18
-  logic [NH-1:0][17:0]  dA_q;       // Q.16
-  logic [NH-1:0][15:0]  D_q;        // Q.12
+  (* ramstyle = "logic" *) logic [NH-1:0][23:0]  delta_q;    // Q.18
+  (* ramstyle = "logic" *) logic [NH-1:0][17:0]  dA_q;       // Q.16
+  (* ramstyle = "logic" *) logic [NH-1:0][15:0]  D_q;        // Q.12
 
   // ---- FSM state ---------------------------------------------------------------------------
   typedef enum logic [3:0] {S_IDLE, S_N1, S_IN, S_DISC, S_SSM, S_OUT, S_NEXT} state_t;
@@ -133,9 +153,9 @@ module mamba_core #(
   logic [K-1:0][7:0] act_d;
   logic signed [7:0] nq_k;
 
-  norm_q8 #(.NMAX(512), .K(K), .WAW(NWA), .RL(1)) u_norm (
+  norm_q8 #(.NMAX(512), .K(K), .WAW(NWA), .RL(3)) u_norm (
     .clk(clk), .rst_n(rst_n), .start(nq_start), .n_log2(nq_nlog2), .w_base(nq_base), .busy(nq_busy),
-    .in_valid(nq_in_valid), .in_v(nq_in_v), .w_addr(nw_addr), .w_data(nw_data),
+    .in_valid(nq_in_valid), .in_v(nq_in_v), .w_addr(nw_addr), .w_data(nw_q),
     .act_we(act_we), .act_g(act_g), .act_d(act_d), .k_out(nq_k), .done(nq_done));
 
   // ---- lin_unit (shared by in_proj and out_proj; Q.16 / 32-bit output) -----------------------
@@ -146,7 +166,7 @@ module mamba_core #(
   logic signed [7:0] ln_k;
   logic signed [31:0] ln_y;
 
-  lin_unit #(.K(K), .G_MAX(4), .AW(LWA), .RW(RW), .RL(3), .F_OUT(16), .W_OUT(32)) u_lin (
+  lin_unit #(.K(K), .G_MAX(4), .AW(LWA), .RW(RW), .RL(5), .F_OUT(16), .W_OUT(32)) u_lin (
     .clk(clk), .rst_n(rst_n), .act_we(act_we), .act_g(act_g), .act_d(act_d),
     .start(ln_start), .base(ln_base), .n_rows(ln_rows), .n_groups(ln_groups), .k(ln_k), .busy(ln_busy),
     .w_addr(lw_addr), .w_data(lw_data), .s_data(ls_data),
@@ -158,7 +178,7 @@ module mamba_core #(
   logic signed [23:0] cv_in_x, cv_y;
   logic [15:0]       cv_tag;
 
-  conv_unit #(.NCH(CONV_DIM), .NLAYER(NL), .RL(1)) u_conv (
+  conv_unit #(.NCH(CONV_DIM), .NLAYER(NL), .RL(2)) u_conv (
     .clk(clk), .rst_n(rst_n), .in_valid(cv_in_valid), .in_first(first_q),
     .in_layer($clog2(NL)'(layer)), .in_ch(cv_in_ch), .in_x(cv_in_x), .in_tag(16'(cv_in_ch)),
     .p_addr(cp_addr), .p_data(cp_data), .out_valid(cv_valid), .out_y(cv_y), .out_tag(cv_tag));
@@ -251,9 +271,10 @@ module mamba_core #(
   // ---- SSM row stream: x read -> delta * x -> xdt ----------------------------------------------------
   localparam int RWS = $clog2(NH * P + 1);
   logic [RWS-1:0]    r_cnt;
-  logic              q1_ok, q2_ok, q3_ok;
-  logic [IW-1:0]     q1_r, q2_r, q3_r;
-  logic signed [15:0] q2_x, q3_x;
+  logic              q1_ok, q1b_ok, q2_ok, q3_ok;
+  logic [IW-1:0]     q1_r, q1b_r, q2_r, q3_r;
+  logic signed [15:0] q1b_x, q2_x, q3_x;
+  logic signed [23:0] q1b_d;
   logic signed [39:0] q2_p;
   logic signed [15:0] q3_xdt;
 
@@ -262,30 +283,42 @@ module mamba_core #(
   always_ff @(posedge clk) begin
     q1_ok <= rst_n && (st == S_SSM) && (r_cnt < RWS'(NH * P)) && !sc_load;
     q1_r  <= IW'(r_cnt);
-    q2_ok <= rst_n & q1_ok;
-    q2_r  <= q1_r;
-    q2_x  <= $signed(x_rd);
-    q2_p  <= $signed(delta_q[q1_r / P]) * $signed(x_rd);
+    // operand register: x (M20K) and delta (8-entry select) -> fabric -> DSP
+    q1b_ok <= rst_n & q1_ok;
+    q1b_r  <= q1_r;
+    q1b_x  <= $signed(x_rd);
+    q1b_d  <= $signed(delta_q[q1_r / P]);
+    q2_ok <= rst_n & q1b_ok;
+    q2_r  <= q1b_r;
+    q2_x  <= q1b_x;
+    q2_p  <= q1b_d * q1b_x;
     q3_ok <= rst_n & q2_ok;
     q3_r  <= q2_r;
     q3_x  <= q2_x;
     q3_xdt <= sat16(32'((q2_p + 40'sd8192) >>> 14));
   end
 
-  always_comb begin
-    sc_in_valid = q3_ok;
-    sc_in_head  = HW'(layer) * HW'(NH) + HW'(q3_r / P);
-    sc_in_p     = PW'(q3_r % P);
-    sc_in_dA    = $signed(dA_q[q3_r / P]);
-    sc_in_xdt   = q3_xdt;
-    sc_in_x     = q3_x;
-    sc_in_D     = $signed(D_q[q3_r / P]);
+  // first head of this layer, registered (layer is stable during S_SSM)
+  logic [HW-1:0] lbase;
+  always_ff @(posedge clk) lbase <= HW'(layer) * HW'(NH);
+
+  // registered so the per-head selects of dA_q / D_q (8 entries each) stay
+  // in fabric registers next to their mux instead of becoming a RAM read
+  // that drives the scan unit's multipliers directly
+  always_ff @(posedge clk) begin
+    sc_in_valid <= rst_n & q3_ok;
+    sc_in_head  <= lbase + HW'(q3_r / P);
+    sc_in_p     <= PW'(q3_r % P);
+    sc_in_dA    <= $signed(dA_q[q3_r / P]);
+    sc_in_xdt   <= q3_xdt;
+    sc_in_x     <= q3_x;
+    sc_in_D     <= $signed(D_q[q3_r / P]);
   end
 
   // SSM output -> z read -> gate -> gated norm
   logic              y1_ok;
   logic signed [23:0] y1;
-  assign z_ra = IW'((sc_head - HW'(layer) * HW'(NH)) * P + sc_p);
+  assign z_ra = IW'((sc_head - lbase) * P + sc_p);
 
   always_ff @(posedge clk) begin
     y1_ok <= rst_n & sc_valid;
@@ -372,9 +405,9 @@ module mamba_core #(
       if (o2_ok)    h_cnt  <= h_cnt + 1'b1;
 
       case (st)
-        S_IDLE: if (tok_go) begin
+        S_IDLE: if (tok_go_r) begin
           busy    <= 1'b1;
-          first_q <= tok_first;
+          first_q <= tok_first_r;
           layer   <= '0;
           st      <= S_NEXT;
         end
