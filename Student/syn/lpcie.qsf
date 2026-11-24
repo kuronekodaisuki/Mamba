@@ -1,0 +1,132 @@
+# -------------------------------------------------------------------------- #
+#
+# Copyright (C) 2025  Altera Corporation. All rights reserved.
+# Your use of Altera Corporation's design tools, logic functions 
+# and other software and tools, and any partner logic 
+# functions, and any output files from any of the foregoing 
+# (including device programming or simulation files), and any 
+# associated documentation or information are expressly subject 
+# to the terms and conditions of the Altera Program License 
+# Subscription Agreement, the Altera Quartus Prime License Agreement,
+# the Altera IP License Agreement, or other applicable license
+# agreement, including, without limitation, that your use is for
+# the sole purpose of programming logic devices manufactured by
+# Altera and sold by Altera or its authorized distributors.  Please
+# refer to the Altera Software License Subscription Agreements 
+# on the Quartus Prime software download page.
+#
+# -------------------------------------------------------------------------- #
+#
+# Quartus Prime
+# Version 25.3.0 Build 109 09/24/2025 SC Pro Edition
+# Date created = 16:33:49  November 24, 2026
+#
+# -------------------------------------------------------------------------- #
+set_global_assignment -name TOP_LEVEL_ENTITY pcie_top
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 25.3.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "16:33:49  NOVEMBER 24, 2026"
+set_global_assignment -name LAST_QUARTUS_VERSION "25.3.0 Pro Edition"
+set_global_assignment -name FAMILY "Arria 10"
+set_global_assignment -name DEVICE 10AX115S2F45I1SG
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name SYSTEMVERILOG_FILE fixed_point.sv
+set_global_assignment -name SYSTEMVERILOG_FILE adder_tree.sv
+set_global_assignment -name SYSTEMVERILOG_FILE sdp_ram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE sdp_ram_wide.sv
+set_global_assignment -name SYSTEMVERILOG_FILE nau.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ssm_discretize.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ssm_scan_unit.sv
+set_global_assignment -name SYSTEMVERILOG_FILE lin_dot.sv
+set_global_assignment -name SYSTEMVERILOG_FILE lin_scale.sv
+set_global_assignment -name SYSTEMVERILOG_FILE lin_unit.sv
+set_global_assignment -name SYSTEMVERILOG_FILE norm_q8.sv
+set_global_assignment -name SYSTEMVERILOG_FILE silu_unit.sv
+set_global_assignment -name SYSTEMVERILOG_FILE gate_unit.sv
+set_global_assignment -name SYSTEMVERILOG_FILE conv_unit.sv
+set_global_assignment -name SYSTEMVERILOG_FILE mamba_core.sv
+set_global_assignment -name SYSTEMVERILOG_FILE host_if.sv
+set_global_assignment -name SYSTEMVERILOG_FILE pcie_top.sv
+set_global_assignment -name IP_FILE ip/pcie_hip.ip
+set_global_assignment -name SDC_FILE pcie_top.sdc
+set_global_assignment -name OPTIMIZATION_MODE "SUPERIOR PERFORMANCE"
+set_global_assignment -name AUTO_SHIFT_REGISTER_RECOGNITION OFF
+set_location_assignment PIN_AL37 -to pcie_refclk
+set_location_assignment PIN_AL38 -to "pcie_refclk(n)"
+set_instance_assignment -name IO_STANDARD HCSL -to pcie_refclk
+set_instance_assignment -name XCVR_IO_PIN_TERMINATION 100_OHMS -to pcie_refclk
+set_location_assignment PIN_BC30 -to pcie_perstn
+set_instance_assignment -name IO_STANDARD "1.8 V" -to pcie_perstn
+set_location_assignment PIN_T12 -to npor_n
+set_instance_assignment -name IO_STANDARD "1.8 V" -to npor_n
+set_location_assignment PIN_AT40 -to pcie_rx[0]
+set_location_assignment PIN_AT39 -to "pcie_rx[0](n)"
+set_location_assignment PIN_BB44 -to pcie_tx[0]
+set_location_assignment PIN_BB43 -to "pcie_tx[0](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[0]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[0]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[0]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[0]
+set_location_assignment PIN_AP40 -to pcie_rx[1]
+set_location_assignment PIN_AP39 -to "pcie_rx[1](n)"
+set_location_assignment PIN_BA42 -to pcie_tx[1]
+set_location_assignment PIN_BA41 -to "pcie_tx[1](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[1]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[1]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[1]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[1]
+set_location_assignment PIN_AN42 -to pcie_rx[2]
+set_location_assignment PIN_AN41 -to "pcie_rx[2](n)"
+set_location_assignment PIN_AY44 -to pcie_tx[2]
+set_location_assignment PIN_AY43 -to "pcie_tx[2](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[2]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[2]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[2]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[2]
+set_location_assignment PIN_AM40 -to pcie_rx[3]
+set_location_assignment PIN_AM39 -to "pcie_rx[3](n)"
+set_location_assignment PIN_AW42 -to pcie_tx[3]
+set_location_assignment PIN_AW41 -to "pcie_tx[3](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[3]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[3]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[3]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[3]
+set_location_assignment PIN_AL42 -to pcie_rx[4]
+set_location_assignment PIN_AL41 -to "pcie_rx[4](n)"
+set_location_assignment PIN_AV44 -to pcie_tx[4]
+set_location_assignment PIN_AV43 -to "pcie_tx[4](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[4]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[4]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[4]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[4]
+set_location_assignment PIN_AK40 -to pcie_rx[5]
+set_location_assignment PIN_AK39 -to "pcie_rx[5](n)"
+set_location_assignment PIN_AU42 -to pcie_tx[5]
+set_location_assignment PIN_AU41 -to "pcie_tx[5](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[5]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[5]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[5]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[5]
+set_location_assignment PIN_AJ42 -to pcie_rx[6]
+set_location_assignment PIN_AJ41 -to "pcie_rx[6](n)"
+set_location_assignment PIN_AT44 -to pcie_tx[6]
+set_location_assignment PIN_AT43 -to "pcie_tx[6](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[6]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[6]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[6]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[6]
+set_location_assignment PIN_AH40 -to pcie_rx[7]
+set_location_assignment PIN_AH39 -to "pcie_rx[7](n)"
+set_location_assignment PIN_AR42 -to pcie_tx[7]
+set_location_assignment PIN_AR41 -to "pcie_tx[7](n)"
+set_instance_assignment -name IO_STANDARD CML -to pcie_rx[7]
+set_instance_assignment -name IO_STANDARD "HSSI DIFFERENTIAL I/O" -to pcie_tx[7]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_rx[7]
+set_instance_assignment -name XCVR_VCCR_VCCT_VOLTAGE 1_0V -to pcie_tx[7]
+set_location_assignment PIN_K26 -to led_n[0]
+set_instance_assignment -name IO_STANDARD "1.8 V" -to led_n[0]
+set_location_assignment PIN_L28 -to led_n[1]
+set_instance_assignment -name IO_STANDARD "1.8 V" -to led_n[1]
+set_location_assignment PIN_K25 -to led_n[2]
+set_instance_assignment -name IO_STANDARD "1.8 V" -to led_n[2]
+set_location_assignment PIN_BA27 -to led_n[3]
+set_instance_assignment -name IO_STANDARD "1.8 V" -to led_n[3]
