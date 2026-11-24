@@ -163,9 +163,43 @@ rd_s2 -> rd_s2b -> op_h registers in between. Quartus moved/absorbed them (the n
     altsyncram parameter list): run_core.sh kills it after 30 min and retries.
     Kill a hung run by PID, not `pkill -f run_core` (matches the calling shell too).
 
+## PCIe host interface (2026-11-24, not yet tried on the board)
+
+- `ip/pcie_hip.ip`: Arria 10 hard IP, Avalon-MM (no DMA), Gen2 x8, 128-bit, 250 MHz,
+  BAR0 32-bit non-prefetchable 64 KB (Avalon-MM without DMA has no Gen3 x8 mode).
+  Made with ip-deploy (wrala_hwtcl=7, cg_impl_cra_av_slave_port_hwtcl=0,
+  avmm_addr_width_hwtcl=64) + `qsys-generate pcie_hip.ip --synthesis=VERILOG`.
+- `host_if.sv`: BAR0 (rxm_bar0, bursts) -> mamba_core cfg port / control / OUT buffer.
+  Map in the file header: ID, STATUS, CTRL (go / first), CFG_PTR {sel, addr},
+  CAP_LAYER, CYCLES, CFG_WIN (64 B, commits on byte 63, addr auto-increments),
+  OUT (D x 32-bit residual of CAP_LAYER). Register reads are sampled one cycle late
+  so they see the effect of earlier writes (PCIe ordering).
+- `tb_host_if.sv` (+define+FULL): loads everything through the BAR (bursts and narrow
+  writes), runs 6 tokens, reads OUT with burst reads: PASS, 60,758 cycles/token.
+- `pcie_top.sv` / `pcie_top.sdc` / `build_pcie.tcl` / `run_pcie.sh` (project lpcie):
+  the core runs on coreclkout_hip (no CDC). Pins from the Intel A10 dev kit example
+  design (refclk AL37, PERST# BC30, npor T12, 8 lanes, LEDs K26 L28 K25 BA27 assumed
+  active low: heartbeat / link / busy / done).
+  Result: setup +0.259 ns at 250 MHz, hold +0.017; ALM 21.8k, M20K 2101, DSP 183;
+  output_files/lpcie.sof.
+- Timing fixes needed in the PCIe top (core_top had closed): norm_q8 state S_C7A
+  (umax -> um_q operand register before umax*R; enum now 5 bits) and pass-2 stage
+  o3b (rounding constant before the variable shift).
+- Host: `Student/host/mamba_host.py` (root; mmap of sysfs resource0, 8-byte ctypes
+  stores in order) loads vec/mem, runs the dumped tokens, checks the last layer.
+  Board: B550M Phantom Gaming 4, slot next to the GPU (probably x4 electrical ->
+  Gen2 x4, enough). Configure by JTAG, then warm reboot so the BIOS enumerates it.
+- Quartus DDM crash: known bug of Quartus Pro 23.3-25.3.1 (Altera KB 349714, time
+  from the DDM client id off by one hour since 2026). Patch for 25.3 (0.27 per the KB)
+  / fixed in 26.1. Until it is installed, qrun.sh (sourced by run_core.sh and
+  run_pcie.sh) retries a stage on the start-up crash and kills a stage whose child
+  died (serv_req_info.txt with ddm_set_lassessor; the parent otherwise hangs in a futex).
+  Do not run the two flows at the same time (shared qdb / dni). Never `pkill -f` a
+  pattern that also matches the calling shell.
+
 ## Next steps after timing closes
 
-1. Host interface (PCIe) replacing the serial chain on cfg_* / tok_go.
+1. Bring-up of pcie_top on the board (see the PCIe section).
 2. Embedding + LM head in DDR4 (tied, 50288 x 256).
 3. Throughput: matmuls are ~70 % of the 5,050 cycles/layer; overlap stages or raise lin_dot
    parallelism; pipeline tokens/layers.

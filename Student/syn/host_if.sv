@@ -26,7 +26,7 @@
 // 4 ssmp  5 h (token input, D x 32-bit Q.16 words).
 //
 // Avalon: byte addresses, bursts (burstcount) for reads and writes, reads
-// pipelined with readdatavalid (2 cycles per beat). waitrequest is only asserted while
+// pipelined with readdatavalid (latency 3). waitrequest is only asserted while
 // the beats of a read burst are being issued.
 // -----------------------------------------------------------------------------
 module host_if #(
@@ -207,7 +207,7 @@ module host_if #(
 
   // ===========================================================================
   // read path: beats issued one per cycle (bursts hold waitrequest),
-  // r0 issue -> r1 (RAM read / register select) -> readdata (registered)
+  // r0 issue -> r1 (RAM data) -> r2 (registers sampled) -> readdata
   // ===========================================================================
   logic [BCW-1:0] rd_left;
   logic [AW-1:0]  rd_next;
@@ -249,30 +249,37 @@ module host_if #(
       .raddr(OBA'((r0_a - A_OUT) >> LB)), .rdata(ob_rd[32*b +: 32]));
   end
 
-  logic           r1_v, r1_out;
+  // r1: OUT RAM data ready; registers are sampled one cycle after the beat was
+  // issued, so a read that follows a write on the bus sees its effect, including
+  // the pointer increment of a CFG_WIN commit (PCIe ordering)
+  logic           r1_v, r1_out, r2_v, r2_out;
+  logic [AW-1:0]  r1_a;
+  logic [AVW-1:0] r2_ob;
+  logic [NLN-1:0][63:0] r2_lane;
 
   always_ff @(posedge clk) begin
     r1_v   <= rst_n & r0_v;
+    r1_a   <= r0_a;
     r1_out <= (r0_a >= A_OUT) && (r0_a < A_OUT + AW'(D * 4));
-  end
-
-  // per-lane register read (a 128-bit beat covers two 64-bit register slots)
-  logic [NLN-1:0][63:0] r1_lane;
-  always_ff @(posedge clk)
+    r2_v   <= rst_n & r1_v;
+    r2_out <= r1_out;
+    r2_ob  <= ob_rd;
+    // per-lane register read (a 128-bit beat covers two 64-bit register slots)
     for (int j = 0; j < NLN; j++) begin
-      automatic logic [AW-1:0] ra = r0_a + AW'(8 * j);
+      automatic logic [AW-1:0] ra = r1_a + AW'(8 * j);
       case (ra)
-        A_ID:     r1_lane[j] <= {32'h4D414D42, VERSION, 16'(D)};
-        A_STATUS: r1_lane[j] <= {16'd0, tok_cnt, 14'd0, done_q, busy | run_q};
-        A_PTR:    r1_lane[j] <= {45'd0, ptr_sel, ptr_addr};
-        A_CAP:    r1_lane[j] <= {56'd0, cap_layer};
-        A_CYC:    r1_lane[j] <= {32'd0, cyc_last};
-        default:  r1_lane[j] <= '0;
+        A_ID:     r2_lane[j] <= {32'h4D414D42, VERSION, 16'(D)};
+        A_STATUS: r2_lane[j] <= {16'd0, tok_cnt, 14'd0, done_q, busy | run_q};
+        A_PTR:    r2_lane[j] <= {45'd0, ptr_sel, ptr_addr};
+        A_CAP:    r2_lane[j] <= {56'd0, cap_layer};
+        A_CYC:    r2_lane[j] <= {32'd0, cyc_last};
+        default:  r2_lane[j] <= '0;
       endcase
     end
+  end
 
   always_ff @(posedge clk) begin
-    avs_readdatavalid <= rst_n & r1_v;
-    avs_readdata      <= r1_out ? ob_rd : AVW'(r1_lane);
+    avs_readdatavalid <= rst_n & r2_v;
+    avs_readdata      <= r2_out ? r2_ob : AVW'(r2_lane);
   end
 endmodule

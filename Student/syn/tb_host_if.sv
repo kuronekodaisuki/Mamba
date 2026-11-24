@@ -109,6 +109,7 @@ module tb_host_if;
 
   // read burst of n beats from a, data returned in q
   logic [AVW-1:0] rq [$];
+  int rd_expect = 0;                                   // beats requested since rq was cleared
   task automatic bus_read(input int a, input int n);
     address    <= AW'(a);
     read       <= 1'b1;
@@ -116,13 +117,14 @@ module tb_host_if;
     @(posedge clk);
     while (waitrequest) @(posedge clk);
     read <= 1'b0;
-    while (rq.size() < n) @(posedge clk);
+    rd_expect += n;
+    while (rq.size() < rd_expect) @(posedge clk);
   endtask
 
   always @(posedge clk) if (readdatavalid) rq.push_back(readdata);
 
   task automatic rd64(input int a, output logic [63:0] v);
-    rq.delete();
+    rq.delete(); rd_expect = 0;
     bus_read(a - a % AVB, 1);
     v = rq[0][64 * ((a % AVB) / 8) +: 64];
   endtask
@@ -196,7 +198,7 @@ module tb_host_if;
       rd64('h28, v);
       $display("token %0d: %0d cycles (layer %0d captured)", tok, v[31:0], cap);
       // OUT: D*4 bytes, 4-beat bursts
-      rq.delete();
+      rq.delete(); rd_expect = 0;
       for (int a = 0; a < D * 4; a += 4 * AVB) bus_read('h1000 + a, 4);
       for (int i = 0; i < D; i++) begin
         automatic logic [31:0] got = rq[i / (AVB / 4)][32 * (i % (AVB / 4)) +: 32];

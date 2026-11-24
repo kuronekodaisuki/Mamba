@@ -55,8 +55,8 @@ module norm_q8 #(
   localparam int W_Q   = 60;                      // shifted / rounded
   localparam logic [W_SS-1:0] EPS_Q = W_SS'(42950);   // round(1e-5 * 2^32)
 
-  typedef enum logic [3:0] {S_IDLE, S_IN, S_C1, S_C2, S_C3, S_C4, S_C5, S_C6, S_C6B,
-                            S_C7, S_C7B, S_C8, S_C8B, S_C8C, S_C9, S_OUT} state_t;
+  typedef enum logic [4:0] {S_IDLE, S_IN, S_C1, S_C2, S_C3, S_C4, S_C5, S_C6, S_C6B,
+                            S_C7A, S_C7, S_C7B, S_C8, S_C8B, S_C8C, S_C9, S_OUT} state_t;
   state_t st;
 
   logic [3:0]      nl_q;
@@ -125,7 +125,7 @@ module norm_q8 #(
     .clk(clk), .we(d_ok), .waddr(d_idx), .wdata(u_d), .raddr(rd_addr), .rdata(buf_rd));
 
   logic [W_SS-1:0] ss;
-  logic [31:0]     umax;
+  logic [31:0]     umax, um_q;
   logic [31:0]     u_abs;
   assign u_abs = u_d[31] ? 32'(-u_d) : 32'(u_d);
 
@@ -262,10 +262,10 @@ module norm_q8 #(
   // ---------------------------------------------------------------------------
   // pass 2: q = sat8(round(u * R / 2^t)), packed into K-lane words
   // ---------------------------------------------------------------------------
-  logic              o1_ok, o1b_ok, o2_ok, o3_ok, o4_ok;
-  logic [IW-1:0]     o1_idx, o1b_idx, o2_idx, o3_idx, o4_idx;
+  logic              o1_ok, o1b_ok, o2_ok, o3_ok, o3b_ok, o4_ok;
+  logic [IW-1:0]     o1_idx, o1b_idx, o2_idx, o3_idx, o3b_idx, o4_idx;
   logic signed [W_P-1:0] o2_p, o3_p;
-  logic signed [W_Q-1:0] o4_s;
+  logic signed [W_Q-1:0] o3b_a, o4_s;     // rounded (o3b), shifted (o4)
   logic [K-1:0][7:0] pack, pack_n;
   logic signed [7:0] q8;
 
@@ -339,12 +339,18 @@ module norm_q8 #(
         end
         S_C6B: begin
           R  <= 17'($signed({1'b0, rc0_q}) + ((rprod + 21'sd256) >>> 9));
-          st <= S_C7;
+          st <= S_C7A;
         end
         // smallest t with amax <= 127 * 2^t; once per norm, so it is spread over
         // several states (the 250 MHz fit put the whole chain in one cycle)
+        // umax goes through an operand register first: Quartus packed umax itself into
+        // the DSP input register, putting abs / compare / mux of pass 1 in front of it
+        S_C7A: begin
+          um_q <= umax;
+          st   <= S_C7;
+        end
         S_C7: begin
-          amax_p <= 49'(umax) * 49'(R);
+          amax_p <= 49'(um_q) * 49'(R);
           st     <= S_C7B;
         end
         S_C7B: begin
@@ -395,7 +401,7 @@ module norm_q8 #(
     end
   end
 
-  // pass-2 pipeline: read (1, 1b) -> u*R (2) -> extra reg (3) -> shift / round (4)
+  // pass-2 pipeline: read (1, 1b) -> u*R (2) -> extra reg (3) -> round (3b) -> shift (4)
   always_ff @(posedge clk) begin
     o1_ok  <= rst_n && (st == S_OUT) && (rd_cnt < n_q);
     o1_idx <= rd_cnt[IW-1:0];
@@ -407,11 +413,16 @@ module norm_q8 #(
     o3_ok  <= rst_n & o2_ok;
     o3_idx <= o2_idx;
     o3_p   <= o2_p;
-    o4_ok  <= rst_n & o3_ok;
-    o4_idx <= o3_idx;
+    // rounding constant and variable shift in separate stages (one stage missed
+    // 4 ns in the PCIe top, after Quartus retimed o3_p into the multiplier)
+    o3b_ok  <= rst_n & o3_ok;
+    o3b_idx <= o3_idx;
+    o3b_a   <= (t_q <= 0) ? W_Q'(o3_p) : W_Q'(o3_p) + (W_Q'(1) <<< (t_q - 1));
+    o4_ok  <= rst_n & o3b_ok;
+    o4_idx <= o3b_idx;
     if (t_q <= 0)
-      o4_s <= W_Q'(o3_p) <<< ((-t_q > 9) ? 9 : -t_q);
+      o4_s <= o3b_a <<< ((-t_q > 9) ? 9 : -t_q);
     else
-      o4_s <= (W_Q'(o3_p) + (W_Q'(1) <<< (t_q - 1))) >>> t_q;
+      o4_s <= o3b_a >>> t_q;
   end
 endmodule
