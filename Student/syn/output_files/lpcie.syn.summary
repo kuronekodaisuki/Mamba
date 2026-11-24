@@ -1,0 +1,9 @@
+Synthesis Status : Successful - Tue Nov 24 16:40:42 2026
+Revision Name : lpcie
+Top-level Entity Name : pcie_top
+Family : Arria 10
+Quartus Prime Version : 25.3.0 Build 109 09/24/2025 SC Pro Edition
+Device : 10AX115S2F45I1SG
+Logic utilization estimate (in ALMs) : 22,176 / 427,200 ( 5 % )
+Total registers : 56316
+Estimated DSP Blocks Post-Merging : 183

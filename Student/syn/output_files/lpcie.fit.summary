@@ -1,0 +1,19 @@
+Fitter Status : Successful - Tue Nov 24 16:52:33 2026
+Quartus Prime Version : 25.3.0 Build 109 09/24/2025 SC Pro Edition
+Revision Name : lpcie
+Top-level Entity Name : pcie_top
+Family : Arria 10
+Device : 10AX115S2F45I1SG
+Timing Models : Final
+Power Models : Final
+Device Status : Final
+Logic utilization (in ALMs) : 21,812 / 427,200 ( 5 % )
+Total registers : 45741
+Total pins : 40 / 960 ( 4 % )
+Total virtual pins : 0
+Total block memory bits : 30,430,016 / 55,562,240 ( 55 % )
+Total RAM Blocks : 2,101 / 2,713 ( 77 % )
+Total DSP Blocks : 183 / 1,518 ( 12 % )
+Total HSSI RX channels : 8 / 72 ( 11 % )
+Total HSSI TX channels : 8 / 72 ( 11 % )
+Total PLLs : 9 / 144 ( 6 % )

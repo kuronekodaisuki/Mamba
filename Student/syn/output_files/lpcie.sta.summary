@@ -1,0 +1,515 @@
+------------------------------------------------------------
+Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Setup 'u_hip|pcie_hip|wys~CORE_CLK_OUT'
+Slack : 0.259
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Setup 'u_hip|pcie_hip|pld_clk'
+Slack : 1.929
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Setup 'pcie_refclk'
+Slack : 4.563
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[0]|tx_clk'
+Slack : 36.217
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[7]|tx_clk'
+Slack : 36.225
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[6]|tx_clk'
+Slack : 36.250
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[1]|tx_clk'
+Slack : 36.511
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[5]|tx_clk'
+Slack : 36.614
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[2]|tx_clk'
+Slack : 36.630
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[4]|tx_clk'
+Slack : 36.726
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Setup 'u_hip|pcie_hip|g_xcvr_native_insts[3]|tx_clk'
+Slack : 37.054
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|wys~CORE_CLK_OUT'
+Slack : 0.017
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|pld_clk'
+Slack : 0.113
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[3]|tx_clk'
+Slack : 0.343
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[2]|tx_clk'
+Slack : 0.404
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[5]|tx_clk'
+Slack : 0.409
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[1]|tx_clk'
+Slack : 0.412
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[0]|tx_clk'
+Slack : 0.426
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[6]|tx_clk'
+Slack : 0.437
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[4]|tx_clk'
+Slack : 0.442
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'u_hip|pcie_hip|g_xcvr_native_insts[7]|tx_clk'
+Slack : 0.462
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Hold 'pcie_refclk'
+Slack : 5.075
+TNS   : 0.000
+Corner: Fast 900mV 100C Model
+
+Type  : Recovery 'u_hip|pcie_hip|wys~CORE_CLK_OUT'
+Slack : 0.743
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[7]|rx_fref'
+Slack : 14.969
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[6]|rx_fref'
+Slack : 15.439
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[5]|rx_fref'
+Slack : 15.539
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[1]|rx_fref'
+Slack : 15.555
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[4]|rx_fref'
+Slack : 15.580
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[2]|rx_fref'
+Slack : 15.826
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[3]|rx_fref'
+Slack : 15.843
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[7]|rx_pma_clk'
+Slack : 16.713
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[0]|rx_fref'
+Slack : 16.902
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[6]|rx_pma_clk'
+Slack : 17.183
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[5]|rx_pma_clk'
+Slack : 17.283
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[1]|rx_pma_clk'
+Slack : 17.299
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[0]|rx_pma_clk'
+Slack : 17.312
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[4]|rx_pma_clk'
+Slack : 17.324
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[2]|rx_pma_clk'
+Slack : 17.570
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Recovery 'u_hip|pcie_hip|g_xcvr_native_insts[3]|rx_pma_clk'
+Slack : 17.587
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Removal 'u_hip|pcie_hip|wys~CORE_CLK_OUT'
+Slack : 0.151
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[3]|rx_pma_clk'
+Slack : 8.518
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[2]|rx_pma_clk'
+Slack : 8.526
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[4]|rx_pma_clk'
+Slack : 8.740
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[5]|rx_pma_clk'
+Slack : 8.778
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[1]|rx_pma_clk'
+Slack : 8.792
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[6]|rx_pma_clk'
+Slack : 8.840
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[7]|rx_pma_clk'
+Slack : 9.229
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[0]|rx_pma_clk'
+Slack : 9.336
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[3]|rx_fref'
+Slack : 9.991
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[2]|rx_fref'
+Slack : 10.011
+TNS   : 0.000
+Corner: Slow 900mV 100C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[4]|rx_fref'
+Slack : 10.113
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[5]|rx_fref'
+Slack : 10.128
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[1]|rx_fref'
+Slack : 10.168
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[6]|rx_fref'
+Slack : 10.179
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[7]|rx_fref'
+Slack : 10.348
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Removal 'u_hip|pcie_hip|g_xcvr_native_insts[0]|rx_fref'
+Slack : 11.066
+TNS   : 0.000
+Corner: Fast 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[0]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[1]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[2]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[3]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[4]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[5]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[6]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[7]|rx_pma_clk'
+Slack : 0.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|pll_pcie_clk'
+Slack : 0.896
+TNS   : 0.000
+Corner: Fast 900mV 100C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|hip_cmn_clk[0]'
+Slack : 0.904
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|wys~CORE_CLK_OUT'
+Slack : 1.320
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|pld_clk'
+Slack : 1.837
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[0]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[1]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[2]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[3]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[4]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[5]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[6]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[7]|pma_hclk_by2'
+Slack : 1.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'pcie_refclk'
+Slack : 4.581
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[0]|rx_fref'
+Slack : 4.862
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[1]|rx_fref'
+Slack : 4.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[2]|rx_fref'
+Slack : 4.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[3]|rx_fref'
+Slack : 4.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[4]|rx_fref'
+Slack : 4.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[5]|rx_fref'
+Slack : 4.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[6]|rx_fref'
+Slack : 4.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[7]|rx_fref'
+Slack : 4.866
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|tx_clkout'
+Slack : 19.824
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[0]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[1]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[2]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[3]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[4]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[5]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[6]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[7]|rx_clk'
+Slack : 19.864
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[0]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[1]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[2]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[3]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[4]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[5]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[6]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+Type  : Minimum Pulse Width 'u_hip|pcie_hip|g_xcvr_native_insts[7]|tx_clk'
+Slack : 19.879
+TNS   : 0.000
+Corner: Slow 900mV -40C Model
+
+------------------------------------------------------------
