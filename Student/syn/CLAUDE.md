@@ -197,6 +197,44 @@ rd_s2 -> rd_s2b -> op_h registers in between. Quartus moved/absorbed them (the n
   Do not run the two flows at the same time (shared qdb / dni). Never `pkill -f` a
   pattern that also matches the calling shell.
 
+## Progress log 2026-11-24 (end of session)
+
+Files changed today (all in syn/ unless noted):
+- Timing (core_top and pcie_top), pure pipelining, numbers unchanged:
+  conv_unit.sv, norm_q8.sv, silu_unit.sv, gate_unit.sv, mamba_core.sv, ssm_scan_unit.sv,
+  sdp_ram_wide.sv (details in "Status 2026-11-24" and the PCIe section).
+- Flow: build_core.tcl (reads syn/ only), run_core.sh / run_pcie.sh rewritten on top of
+  the new qrun.sh (DDM-crash retry, child-crash watchdog, 30 min synthesis timeout,
+  quartus_asm stage in run_pcie.sh), worst_pcie.tcl.
+- PCIe (new): ip/pcie_hip.ip (+ generated ip/pcie_hip/), host_if.sv, tb_host_if.sv,
+  pcie_top.sv, pcie_top.sdc, build_pcie.tcl, ../host/mamba_host.py.
+
+Results:
+| design | setup slack @250 MHz | hold | ALM | M20K | DSP | sim |
+|---|---|---|---|---|---|---|
+| core_top | +0.195 ns | +0.019 | 17.1k | 2082 | 183 | tb_mamba_core FULL PASS, 60,968 cyc/token |
+| pcie_top (lpcie) | +0.259 ns | +0.017 | 21.8k | 2101 | 183 | tb_host_if FULL PASS, 60,758 cyc/token |
+pcie_top worst paths: norm_q8 o4_s -> pack (+0.259), host_if wr_left -> win (+0.298).
+output_files/lpcie.sof is built. Procedure for the board was also mailed to the owner.
+
+Open issues:
+- Not tried on the board yet: pins / LED polarity are taken from the Intel dev kit
+  example design and are unverified; link width in the B550M second slot unknown
+  (expected Gen2 x4).
+- Quartus DDM crash (KB 349714): install the 25.3 patch (or move to 26.1); until then
+  rely on qrun.sh retries.
+- ip/pcie_hip/ (generated IP, 11 MB) is not committed: regenerate with
+  `qsys-generate ip/pcie_hip.ip --synthesis=VERILOG`. Do not commit logs, qdb/, dni/,
+  work/, output_files/*.rpt.
+- Host I/O is PIO only (Python, per-8-byte stores): weight load is slow, tok/s seen by
+  the host will be far below the 4,100 tok/s of the core.
+
+Next session:
+1. Board bring-up: JTAG lpcie.sof -> warm reboot -> `lspci -d 1172:` (check LnkSta) ->
+   `sudo python3 ../host/mamba_host.py --list`, then `--bdf <BDF> --vec ../syn/vec`
+   (expect PASS, ~60.8k cycles/token). If no link: check refclk / PERST# pins, LEDs.
+2. Then the items of "Next steps" below (DDR4 embedding / LM head, throughput, GPU).
+
 ## Next steps after timing closes
 
 1. Bring-up of pcie_top on the board (see the PCIe section).
